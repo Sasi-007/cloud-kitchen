@@ -1,6 +1,5 @@
-'use client';
-
-import { useApp } from '@/context/AppContext';
+import { redirect } from 'next/navigation';
+export default function AdminIndex() { redirect('/admin/orders'); }
 
 export default function AdminPage() {
   const { orders, updateOrderStatus, showToast } = useApp();

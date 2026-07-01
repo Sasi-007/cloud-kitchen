@@ -1,15 +1,13 @@
 import Link from 'next/link';
+import AdminSidebar from '@/components/AdminSidebar';
 
-export const metadata = { title: 'Kitchen Admin — SpiceFest' };
+export const metadata = { title: 'Admin — SpiceFest Kitchen' };
 
 export default function AdminLayout({ children }) {
   return (
-    <>
-      <header className="admin-nav">
-        <span className="admin-nav-logo">👨‍🍳 Kitchen Admin</span>
-        <Link href="/" className="admin-nav-back">← Customer View</Link>
-      </header>
-      <main>{children}</main>
-    </>
+    <div className="admin-shell">
+      <AdminSidebar />
+      <main className="admin-main">{children}</main>
+    </div>
   );
 }

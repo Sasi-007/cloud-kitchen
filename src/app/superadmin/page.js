@@ -1,0 +1,187 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { getSupabase } from '@/lib/supabase';
+
+const BLANK_KITCHEN = { name: '', slug: '', tagline: '', upi_id: '', phone: '', address: '' };
+const BLANK_ADMIN   = { name: '', email: '', password: '' };
+
+export default function SuperAdminPage() {
+  const [kitchens,     setKitchens]     = useState([]);
+  const [showForm,     setShowForm]     = useState(false);
+  const [kitchenForm,  setKitchenForm]  = useState(BLANK_KITCHEN);
+  const [adminForm,    setAdminForm]    = useState(BLANK_ADMIN);
+  const [saving,       setSaving]       = useState(false);
+  const [message,      setMessage]      = useState('');
+  const [editId,       setEditId]       = useState(null);   // kitchen id being edited
+  const [editForm,     setEditForm]     = useState({});     // edit field values
+
+  useEffect(() => { loadKitchens(); }, []);
+
+  async function loadKitchens() {
+    const { data } = await getSupabase().from('kitchens').select('*').order('created_at', { ascending: false });
+    setKitchens(data || []);
+  }
+
+  function kField(e) { setKitchenForm((p) => ({ ...p, [e.target.name]: e.target.value })); }
+  function aField(e) { setAdminForm((p) => ({   ...p, [e.target.name]: e.target.value })); }
+
+  async function onboard() {
+    const { name, slug, upi_id, phone } = kitchenForm;
+    const { email, password } = adminForm;
+    if (!name || !slug || !email || !password) { alert('Fill all required fields'); return; }
+    if (password.length < 8) { alert('Password must be at least 8 characters'); return; }
+    setSaving(true); setMessage('');
+
+    const supabase = getSupabase();
+
+    // 1. Insert kitchen
+    const { data: kitchen, error: kErr } = await supabase
+      .from('kitchens').insert({ ...kitchenForm, active: true }).select().single();
+    if (kErr) { setMessage('❌ Kitchen error: ' + kErr.message); setSaving(false); return; }
+
+    // 2. Create admin user via secure server API (requires service role key)
+    const res = await fetch('/api/admin/create-user', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, name: adminForm.name, kitchen_id: kitchen.id }),
+    });
+    const result = await res.json();
+    if(!res.ok) { setMessage('❌ Admin user error: ' + aErr.message); setSaving(false); return; }
+
+    setMessage(`✅ "${name}" onboarded! Admin: ${email}`);
+    setKitchenForm(BLANK_KITCHEN); setAdminForm(BLANK_ADMIN); setShowForm(false);
+    loadKitchens(); setSaving(false);
+  }
+
+  async function toggleActive(id, current) {
+    await getSupabase().from('kitchens').update({ active: !current }).eq('id', id);
+    loadKitchens();
+  }
+
+  function startEdit(k) {
+    setEditId(k.id);
+    setEditForm({ name: k.name, slug: k.slug, tagline: k.tagline || '', phone: k.phone || '', upi_id: k.upi_id || '', address: k.address || '' });
+  }
+
+  async function saveEdit(id) {
+    await getSupabase().from('kitchens').update(editForm).eq('id', id);
+    setEditId(null);
+    loadKitchens();
+  }
+
+  async function deleteKitchen(id, name) {
+    if (!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
+    await getSupabase().from('kitchens').delete().eq('id', id);
+    loadKitchens();
+  }
+
+  return (
+    <div>
+      <div className="admin-hero" style={{ marginBottom: 24 }}>
+        <h2>⚡ Platform Overview</h2>
+        <p>Manage all cloud kitchens, onboard new partners, control access</p>
+      </div>
+
+      <div className="admin-stats" style={{ marginBottom: 28 }}>
+        <div className="stat-card"><div className="stat-val" style={{ color: 'var(--primary)' }}>{kitchens.length}</div><div className="stat-lbl">Total Kitchens</div></div>
+        <div className="stat-card"><div className="stat-val" style={{ color: 'var(--green)' }}>{kitchens.filter((k) => k.active).length}</div><div className="stat-lbl">Active</div></div>
+        <div className="stat-card"><div className="stat-val" style={{ color: 'var(--red)' }}>{kitchens.filter((k) => !k.active).length}</div><div className="stat-lbl">Inactive</div></div>
+      </div>
+
+      {message && (
+        <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontWeight: 600, color: 'var(--green)' }}>
+          {message}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>All Kitchens</div>
+        <button className="btn-primary" style={{ width: 'auto', padding: '10px 18px' }} onClick={() => setShowForm(!showForm)}>
+          {showForm ? 'Cancel' : '+ Onboard New Kitchen'}
+        </button>
+      </div>
+
+      {/* ONBOARDING FORM */}
+      {showForm && (
+        <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)', marginBottom: 24, border: '2px solid var(--primary)' }}>
+          <h3 style={{ fontWeight: 800, marginBottom: 20 }}>New Kitchen + Admin Setup</h3>
+
+          <div style={{ fontWeight: 700, marginBottom: 12, color: 'var(--muted)', fontSize: '0.82rem', textTransform: 'uppercase' }}>Kitchen Details</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
+            <div className="form-group"><label>KITCHEN NAME *</label><input name="name" value={kitchenForm.name} onChange={kField} placeholder="BiryaniBox" /></div>
+            <div className="form-group"><label>SLUG * (URL key)</label><input name="slug" value={kitchenForm.slug} onChange={kField} placeholder="biryanibox" /></div>
+            <div className="form-group" style={{ gridColumn: '1/-1' }}><label>TAGLINE</label><input name="tagline" value={kitchenForm.tagline} onChange={kField} placeholder="Best Biryani in Town" /></div>
+            <div className="form-group"><label>UPI ID</label><input name="upi_id" value={kitchenForm.upi_id} onChange={kField} placeholder="biryanibox@okaxis" /></div>
+            <div className="form-group"><label>PHONE</label><input name="phone" value={kitchenForm.phone} onChange={kField} placeholder="+91 9999999999" type="tel" /></div>
+            <div className="form-group" style={{ gridColumn: '1/-1' }}><label>ADDRESS</label><input name="address" value={kitchenForm.address} onChange={kField} placeholder="Gachibowli, Hyderabad" /></div>
+          </div>
+
+          <div className="divider" />
+          <div style={{ fontWeight: 700, marginBottom: 12, color: 'var(--muted)', fontSize: '0.82rem', textTransform: 'uppercase' }}>Admin User Credentials</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div className="form-group" style={{ gridColumn: '1/-1' }}><label>ADMIN NAME</label><input name="name" value={adminForm.name} onChange={aField} placeholder="Ravi Kumar" /></div>
+            <div className="form-group"><label>ADMIN EMAIL *</label><input name="email" type="email" value={adminForm.email} onChange={aField} placeholder="admin@biryanibox.com" /></div>
+            <div className="form-group"><label>TEMP PASSWORD *</label><input name="password" type="password" value={adminForm.password} onChange={aField} placeholder="Min 8 characters" /></div>
+          </div>
+
+          <div className="info-box" style={{ marginTop: 12 }}>
+            ℹ️ The admin user will receive login credentials at the email above. They should change their password after first login.
+          </div>
+
+          <button className="btn-primary" style={{ marginTop: 16 }} onClick={onboard} disabled={saving}>
+            {saving ? 'Setting up…' : '🚀 Onboard Kitchen'}
+          </button>
+        </div>
+      )}
+
+      {/* KITCHEN LIST */}
+      {kitchens.map((k) => (
+        <div key={k.id} className="order-card">
+          {editId === k.id ? (
+            /* ── EDIT MODE ── */
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>✏️ Edit Kitchen</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                <div className="form-group"><label>NAME</label><input value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} /></div>
+                <div className="form-group"><label>SLUG</label><input value={editForm.slug} onChange={(e) => setEditForm((p) => ({ ...p, slug: e.target.value }))} /></div>
+                <div className="form-group"><label>PHONE</label><input value={editForm.phone} onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))} /></div>
+                <div className="form-group"><label>UPI ID</label><input value={editForm.upi_id} onChange={(e) => setEditForm((p) => ({ ...p, upi_id: e.target.value }))} /></div>
+                <div className="form-group" style={{ gridColumn: '1/-1' }}><label>TAGLINE</label><input value={editForm.tagline} onChange={(e) => setEditForm((p) => ({ ...p, tagline: e.target.value }))} /></div>
+                <div className="form-group" style={{ gridColumn: '1/-1' }}><label>ADDRESS</label><input value={editForm.address} onChange={(e) => setEditForm((p) => ({ ...p, address: e.target.value }))} /></div>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="action-btn accept" onClick={() => saveEdit(k.id)}>💾 Save</button>
+                <button className="action-btn" onClick={() => setEditId(null)}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            /* ── VIEW MODE ── */
+            <>
+              <div className="order-top">
+                <div>
+                  <h4>🍳 {k.name}</h4>
+                  <small>🔗 /{k.slug} &nbsp;|&nbsp; 📞 {k.phone || 'N/A'} &nbsp;|&nbsp; 💳 {k.upi_id || 'Not set'}</small>
+                  {k.tagline && <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginTop: 4 }}>{k.tagline}</div>}
+                </div>
+                <span className={`badge ${k.active ? 'badge-delivered' : 'badge-new'}`}>
+                  {k.active ? '✅ Active' : '⏸️ Inactive'}
+                </span>
+              </div>
+              <div className="order-actions" style={{ marginTop: 12 }}>
+                <a href={`/${k.slug}`} target="_blank" rel="noreferrer" className="action-btn accept">👁️ View Menu</a>
+                <button className="action-btn" style={{ background: k.active ? '#fee2e2' : '#dcfce7', color: k.active ? '#991b1b' : '#166534' }} onClick={() => toggleActive(k.id, k.active)}>
+                  {k.active ? '⏸️ Deactivate' : '▶ Activate'}
+                </button>
+                <button className="action-btn" style={{ background: '#fef9c3', color: '#854d0e' }} onClick={() => startEdit(k)}>✏️ Edit</button>
+                <button className="action-btn" style={{ background: '#fee2e2', color: '#991b1b', marginLeft: 'auto' }} onClick={() => deleteKitchen(k.id, k.name)}>🗑️ Delete</button>
+              </div>
+            </>
+          )}
+        </div>
+      ))}
+
+      {!kitchens.length && <div className="empty-state"><div className="ico">🏪</div><p>No kitchens onboarded yet. Click "Onboard New Kitchen" to start.</p></div>}
+    </div>
+  );
+}
