@@ -15,7 +15,7 @@ export default function SlugCheckoutPage({ params }) {
   const [form,    setForm]      = useState({ name: '', phone: '', address: '', note: '' });
 
   useEffect(() => {
-    getSupabase().from('kitchens').select('id,name,upi_id').eq('slug', slug).single()
+    getSupabase().from('kitchens').select('id,name,upi_id,plan').eq('slug', slug).single()
       .then(({ data }) => setKitchen(data));
     try { setCart(JSON.parse(localStorage.getItem(`ck_cart_${slug}`) || '{}')); } catch {}
   }, [slug]);
@@ -80,9 +80,12 @@ export default function SlugCheckoutPage({ params }) {
         <div className={`pay-opt ${payment === 'cod' ? 'selected' : ''}`} onClick={() => setPayment('cod')}>
           <div className="pay-icon">💵</div><h4>Cash on Delivery</h4><p>Pay when food arrives</p>
         </div>
-        <div className={`pay-opt ${payment === 'gpay' ? 'selected' : ''}`} onClick={() => setPayment('gpay')}>
-          <div className="pay-icon">📱</div><h4>GPay / UPI</h4><p>Scan &amp; pay instantly</p>
-        </div>
+        {/* GPay only available on Growth/Pro plan */}
+        {kitchen?.plan !== 'starter' && (
+          <div className={`pay-opt ${payment === 'gpay' ? 'selected' : ''}`} onClick={() => setPayment('gpay')}>
+            <div className="pay-icon">📱</div><h4>GPay / UPI</h4><p>Scan &amp; pay instantly</p>
+          </div>
+        )}
       </div>
 
       {payment === 'gpay' && (

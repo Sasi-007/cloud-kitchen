@@ -426,19 +426,32 @@ a { text-decoration: none; color: inherit; }
 
   /* Admin */
   .admin-page         { padding: 14px 12px; }
-  .admin-hero         { padding: 18px 16px; }
+  .admin-hero         { padding: 18px 16px; margin-bottom: 16px; }
   .admin-hero h2      { font-size: 1.2rem; }
-  .admin-stats        { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .admin-stats        { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
   .stat-card          { padding: 14px 12px; }
   .stat-val           { font-size: 1.5rem; }
-  .order-card         { padding: 14px 16px; }
-  .order-top          { flex-direction: column; gap: 8px; }
-  .order-actions      { flex-wrap: wrap; gap: 8px; }
-  .action-btn         { padding: 7px 12px; font-size: 0.78rem; }
+  .order-card         { padding: 14px 16px; margin-bottom: 12px; }
+  .order-top          { flex-direction: column; gap: 6px; align-items: flex-start; }
+  .order-top .badge   { align-self: flex-start; }
+  .order-actions      { flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .action-btn         { padding: 9px 14px; font-size: 0.82rem; flex: 1; min-width: 120px; text-align: center; }
 
+  .cat-tabs           { gap: 6px; padding-bottom: 4px; margin-bottom: 14px; }
+  .cat-tab            { padding: 7px 12px; font-size:  0.8rem; flex-shrink: 0; }
+  .admin-page .form-group { margin-bottom: 14px; }
+  .admin-page label   { font-size: 0.72rem; }
+  .admin-page [style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  .admin-page [style*="gridColumn: '1/-1'"],
+  .admin-page [style*="grid-column: 1/-1"] {
+    grid-column: 1 !important;
+  }
   /* Forms */
   .form-group input,
-  .form-group textarea { font-size: 1rem; }   /* prevent iOS zoom on focus (needs ≥16px) */
+  .form-group textarea,
+  .form-group select { font-size: 1rem; }   /* prevent iOS zoom on focus (needs ≥16px) */
   .info-box           { font-size: 0.8rem; }
 
   /* Buttons */

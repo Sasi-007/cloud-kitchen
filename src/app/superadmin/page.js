@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 
-const BLANK_KITCHEN = { name: '', slug: '', tagline: '', upi_id: '', phone: '', address: '' };
+const BLANK_KITCHEN = { name: '', slug: '', tagline: '', upi_id: '', phone: '', address: '', plan: 'starter' };
 const BLANK_ADMIN   = { name: '', email: '', password: '' };
 
 export default function SuperAdminPage() {
@@ -41,13 +41,13 @@ export default function SuperAdminPage() {
     if (kErr) { setMessage('❌ Kitchen error: ' + kErr.message); setSaving(false); return; }
 
     // 2. Create admin user via secure server API (requires service role key)
-    const res = await fetch('/api/admin/create-user', {
+    const res  = await fetch('/api/admin/create-user', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, name: adminForm.name, kitchen_id: kitchen.id }),
     });
     const result = await res.json();
-    if(!res.ok) { setMessage('❌ Admin user error: ' + aErr.message); setSaving(false); return; }
+    if (!res.ok) { setMessage('❌ Admin user error: ' + result.error); setSaving(false); return; }
 
     setMessage(`✅ "${name}" onboarded! Admin: ${email}`);
     setKitchenForm(BLANK_KITCHEN); setAdminForm(BLANK_ADMIN); setShowForm(false);
@@ -115,6 +115,13 @@ export default function SuperAdminPage() {
             <div className="form-group"><label>UPI ID</label><input name="upi_id" value={kitchenForm.upi_id} onChange={kField} placeholder="biryanibox@okaxis" /></div>
             <div className="form-group"><label>PHONE</label><input name="phone" value={kitchenForm.phone} onChange={kField} placeholder="+91 9999999999" type="tel" /></div>
             <div className="form-group" style={{ gridColumn: '1/-1' }}><label>ADDRESS</label><input name="address" value={kitchenForm.address} onChange={kField} placeholder="Gachibowli, Hyderabad" /></div>
+            <div className="form-group"><label>PLAN</label>
+              <select name="plan" value={kitchenForm.plan} onChange={kField} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)' }}>
+                <option value="starter">Starter (Free)</option>
+                <option value="growth">Growth (₹999/mo)</option>
+                <option value="pro">Pro (₹2,499/mo)</option>
+              </select>
+            </div>
           </div>
 
           <div className="divider" />
@@ -149,6 +156,13 @@ export default function SuperAdminPage() {
                 <div className="form-group"><label>UPI ID</label><input value={editForm.upi_id} onChange={(e) => setEditForm((p) => ({ ...p, upi_id: e.target.value }))} /></div>
                 <div className="form-group" style={{ gridColumn: '1/-1' }}><label>TAGLINE</label><input value={editForm.tagline} onChange={(e) => setEditForm((p) => ({ ...p, tagline: e.target.value }))} /></div>
                 <div className="form-group" style={{ gridColumn: '1/-1' }}><label>ADDRESS</label><input value={editForm.address} onChange={(e) => setEditForm((p) => ({ ...p, address: e.target.value }))} /></div>
+              <div className="form-group"><label>PLAN</label>
+                <select value={editForm.plan || 'starter'} onChange={(e) => setEditForm((p) => ({ ...p, plan: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)' }}>
+                  <option value="starter">Starter (Free)</option>
+                  <option value="growth">Growth (₹999/mo)</option>
+                  <option value="pro">Pro (₹2,499/mo)</option>
+                </select>
+              </div>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button className="action-btn accept" onClick={() => saveEdit(k.id)}>💾 Save</button>
@@ -163,6 +177,15 @@ export default function SuperAdminPage() {
                   <h4>🍳 {k.name}</h4>
                   <small>🔗 /{k.slug} &nbsp;|&nbsp; 📞 {k.phone || 'N/A'} &nbsp;|&nbsp; 💳 {k.upi_id || 'Not set'}</small>
                   {k.tagline && <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginTop: 4 }}>{k.tagline}</div>}
+                  <div style={{ marginTop: 6 }}>
+                    <span style={{
+                      fontSize: '0.72rem', fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                      background: k.plan === 'pro' ? '#ede9fe' : k.plan === 'growth' ? '#fff7ed' : '#f3f4f6',
+                      color: k.plan === 'pro' ? '#7c3aed' : k.plan === 'growth' ? '#c2410c' : '#6b7280',
+                    }}>
+                      {k.plan === 'pro' ? '⭐ Pro' : k.plan === 'growth' ? '🔥 Growth' : '🆓 Starter'}
+                    </span>
+                  </div>
                 </div>
                 <span className={`badge ${k.active ? 'badge-delivered' : 'badge-new'}`}>
                   {k.active ? '✅ Active' : '⏸️ Inactive'}

@@ -35,6 +35,28 @@ export default function AdminBrandingPage() {
     <div className="admin-page" style={{ maxWidth: 640 }}>
       <div className="admin-hero"><h2>🎨 Branding &amp; Settings</h2><p>Update your kitchen name, logo, UPI, and contact details</p></div>
 
+      {profile?.kitchens?.slug && (() => {
+        const menuUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/${profile.kitchens.slug}`;
+        const waText = encodeURIComponent(`🍛 Order from ${profile.kitchens.name || 'our kitchen'}!\n\nBrowse menu & place your order here:\n${menuUrl}\n\nNo calls needed - order in 2 minutes 😊`);
+        return(
+          <div style={{ background: 'linear-gradient(135deg,#dcfce7, #bbf7d0)', border: '1.5px solid #86efac', borderRadius: 16, padding: '20px 24px', marginBottom: 24}}>
+            <div style={{ fontWeight: 800, marginBottom: 4 }}>📥 Share Your Menu</div>
+            <div style={{ fontSize: '0.85rem', color: '#166534', marginBottom:14 }}>
+              Send this link to customers - they can browse &amp; order without calling you.
+            </div>
+            <div style={{ background: '#fff', borderRadius: 10, padding: '10px 14px', fontSize: '0.88rem', fontFamily: 'monospace', color: 'var(--primary)', marginBottom: 14, wordBreak: 'break-all' }}>
+              {menuUrl}
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <a href={`https://wa.me/?text=${waText}`} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#25d366', color: '#fff', borderRadius: 10, padding: '10px 18px', fontWeight: 700, fontSize: '0.88rem', textDecoration: 'none'}}>
+                <span style={{ fontSize: '1.1rem' }}>📱</span> Share on WhatsApp
+              </a>
+              <button onClick={() => { navigator.clipboard.writeText(menuUrl); alert('Link copied!'); }} style={{ display: 'inline-flex', alignItems: 'center', gap:8,background: '#fff', border: '1.5px solid #86efac', color: '#166534', borderRadius: 10, padding: '10px 18px', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer' }}>📋 Copy Link</button>
+            </div>
+          </div>
+        );
+      })()}
+
       <div style={{ background: '#fff', borderRadius: 16, padding: 28, boxShadow: 'var(--shadow)' }}>
         <div style={{ fontWeight: 700, marginBottom: 16 }}>Kitchen Logo</div>
         <ImageUpload bucket="branding" currentUrl={logoUrl} onUpload={setLogoUrl} label="Upload Logo" />
