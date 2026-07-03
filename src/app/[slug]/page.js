@@ -62,76 +62,42 @@ export default function KitchenMenuPage({ params }) {
 
   return (
     <div className="page">
-      {/* HERO */}
-      <div className="hero">
-        <h1>Order for Your Party 🎉</h1>
-        <p>{kitchen?.tagline || 'Bulk catering for gatherings & events'}</p>
-        {/* <div style={{ marginTop: 14}}>
-          <a href={`/${slug}/orders`} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.15)', border: '1.5px solid rgba(255,255,255,0.5)',
-            color: '#fff', borderRadius: 30, padding: '8px 18px', fontSize: '0.88rem', fontWeight: 600, textDecoration: 'none', backdropFilter: 'blur(4px)'
-          }}>
-            📋 Already ordered? Track your order
-          </a>
-        </div>
-        <div className="party-selector">
-          <label>👥 Party Size:</label>
-          <select value={partySize} onChange={(e) => setPartySize(Number(e.target.value))}>
-            {[1, 5, 10, 20, 30, 50, 100].map((n) => (
-              <option key={n} value={n}>{n === 1 ? '1–5 People' : `${n} People`}</option>
-            ))}
-          </select>
-          <span className="party-badge">
-            Min ₹{(partySize * 100).toLocaleString('en-IN')}
-          </span>
-        </div> */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            gap: 18,
-            marginTop: 18,
-          }}
-        >
-          <a
-            href={`/${slug}/orders`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              background: 'rgba(255,255,255,0.15)',
-              border: '1.5px solid rgba(255,255,255,0.5)',
-              color: '#fff',
-              borderRadius: 30,
-              padding: '8px 18px',
-              fontSize: '0.88rem',
-              fontWeight: 600,
-              textDecoration: 'none',
-              backdropFilter: 'blur(4px)',
-            }}
-          >
-            📋 Already ordered? Track your order
-          </a>
+      {/* HERO — uses kitchen banner if available */}
+      <div className="hero" style={kitchen?.banner_url ? {
+        backgroundImage: `url(${kitchen.banner_url})`,
+        backgroundSize: 'cover', backgroundPosition: 'center',
+        position: 'relative',
+      } : {}}>
+        {kitchen?.banner_url && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', borderRadius: 'inherit' }} />}
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          {kitchen?.logo_url && (
+            <img src={kitchen.logo_url} alt={kitchen.name}
+              style={{ width: 72, height: 72, objectFit: 'contain', borderRadius: 16, marginBottom: 12, background: '#fff', padding: 6, boxShadow: '0 2px 12px rgba(0,0,0,0.15)' }}
+            />
+          )}
+          <h1>{kitchen?.name || 'Order for Your Party 🎉'}</h1>
+          <p>{kitchen?.tagline || 'Bulk catering for gatherings & events'}</p>
 
-          <div className="party-selector">
+          <div className="party-selector" style={{ marginBottom: 20 }}>
             <label>👥 Party Size:</label>
-
-            <select
-              value={partySize}
-              onChange={(e) => setPartySize(Number(e.target.value))}
-            >
+            <select value={partySize} onChange={(e) => setPartySize(Number(e.target.value))}>
               {[1, 5, 10, 20, 30, 50, 100].map((n) => (
-                <option key={n} value={n}>
-                  {n === 1 ? '1–5 People' : `${n} People`}
-                </option>
+                <option key={n} value={n}>{n === 1 ? '1–5 People' : `${n} People`}</option>
               ))}
             </select>
-
             <span className="party-badge">
               Min ₹{(partySize * 100).toLocaleString('en-IN')}
             </span>
           </div>
+
+          <a href={`/${slug}/orders`} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            background: 'rgba(255,255,255,0.18)', border: '1.5px solid rgba(255,255,255,0.45)',
+            color: '#fff', borderRadius: 30, padding: '8px 18px', fontSize: '0.85rem',
+            fontWeight: 600, textDecoration: 'none',
+          }}>
+            📋 Already ordered? Track your order
+          </a>
         </div>
       </div>
 
@@ -183,6 +149,37 @@ export default function KitchenMenuPage({ params }) {
         })}
       </div>
       {!filtered.length && <div className="empty-state"><div className="ico">🍽️</div><p>No items in this category yet.</p></div>}
+
+      {/* CONTACT KITCHEN FOOTER */}
+      {(kitchen?.phone || kitchen?.address) && (
+        <div style={{ marginTop: 32, borderTop: '1px solid #f0f0f0', paddingTop: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '1rem', marginBottom: 6 }}>{kitchen.name}</div>
+              {kitchen.address && (
+                <div style={{ color: 'var(--muted)', fontSize: '0.85rem', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                  <span>📍</span><span>{kitchen.address}</span>
+                </div>
+              )}
+              {kitchen.phone && (
+                <div style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: 4, display: 'flex', gap: 6 }}>
+                  <span>📞</span>
+                  <a href={`tel:${kitchen.phone}`} style={{ color: 'var(--primary)', fontWeight: 600 }}>{kitchen.phone}</a>
+                </div>
+              )}
+            </div>
+            {kitchen.phone && (
+              <a
+                href={`https://wa.me/${kitchen.phone.replace(/\D/g,'')}?text=${encodeURIComponent(`Hi! I have a question about ordering from ${kitchen.name}.`)}`}
+                target="_blank" rel="noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#25d366', color: '#fff', borderRadius: 12, padding: '12px 20px', fontWeight: 700, fontSize: '0.9rem', textDecoration: 'none', boxShadow: '0 2px 12px rgba(37,211,102,0.25)' }}
+              >
+                <span style={{ fontSize: '1.1rem' }}>📱</span> Contact Kitchen
+              </a>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

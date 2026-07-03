@@ -14,6 +14,7 @@ export default function SuperAdminLayout({ children }) {
       <header className="admin-nav">
         <span className="admin-nav-logo">⚡ Super Admin</span>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <Link href="/superadmin/tickets" className="admin-nav-back">🎧 Tickets</Link>
           <Link href="/" className="admin-nav-back">← Customer View</Link>
           <button onClick={logout} className="admin-nav-back" style={{ background: '#fee2e2', color: '#991b1b', border: 'none', cursor: 'pointer' }}>Logout</button>
         </div>

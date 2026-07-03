@@ -16,7 +16,7 @@ const PLANS = [
     ],
     missing: ['GPay / UPI QR', 'Analytics dashboard', 'Customer feedback', 'Custom branding', 'Priority support'],
     cta: 'Get Started Free',
-    href: '/login',
+    href: '/get-started?plan=starter',
     highlight: false,
   },
   {
@@ -36,8 +36,8 @@ const PLANS = [
       'Custom branding (logo, banner)',
     ],
     missing: ['Priority support'],
-    cta: 'Start Growth Plan',
-    href: '/login',
+    cta: 'Get Started — ₹999/mo',
+    href: '/get-started?plan=growth',
     highlight: true,
   },
   {
@@ -57,7 +57,7 @@ const PLANS = [
     ],
     missing: [],
     cta: 'Contact Us',
-    href: '/login',
+    href: '/get-started?plan=pro',
     highlight: false,
   },
 ];

@@ -14,7 +14,8 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
-body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+* { box-sizing: border-box; }
 a { text-decoration: none; color: inherit; }
 
 /* ── NAV ──────────────────────────────────────────── */
@@ -346,6 +347,18 @@ a { text-decoration: none; color: inherit; }
    MOBILE & RESPONSIVE STYLES
 ═══════════════════════════════════════════════════ */
 
+/* ── Tablet 768–900px ─────────────────────────────── */
+@media (min-width: 641px) and (max-width: 900px) {
+  .admin-page     { padding: 20px 16px; }
+  .admin-stats    { grid-template-columns: repeat(4, 1fr); }
+  .menu-grid      { grid-template-columns: repeat(2, 1fr); }
+  .page           { padding: 20px 16px; }
+  .hero           { padding: 28px 20px; }
+  .success-card   { padding: 28px 24px; }
+  .feedback-card  { padding: 28px 24px; }
+  [style*="gridTemplateColumns: '1fr 1fr'"] { grid-template-columns: 1fr 1fr; }
+}
+
 /* ── Tablet: admin sidebar collapses to top bar ── */
 @media (max-width: 900px) {
   .admin-shell        { flex-direction: column; }
@@ -431,16 +444,23 @@ a { text-decoration: none; color: inherit; }
   .admin-stats        { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
   .stat-card          { padding: 14px 12px; }
   .stat-val           { font-size: 1.5rem; }
+
+  /* Order cards */
   .order-card         { padding: 14px 16px; margin-bottom: 12px; }
   .order-top          { flex-direction: column; gap: 6px; align-items: flex-start; }
   .order-top .badge   { align-self: flex-start; }
   .order-actions      { flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .action-btn         { padding: 9px 14px; font-size: 0.82rem; flex: 1; min-width: 120px; text-align: center; }
 
+  /* Cat tabs in admin */
   .cat-tabs           { gap: 6px; padding-bottom: 4px; margin-bottom: 14px; }
-  .cat-tab            { padding: 7px 12px; font-size:  0.8rem; flex-shrink: 0; }
+  .cat-tab            { padding: 7px 12px; font-size: 0.8rem; flex-shrink: 0; }
+
+  /* Admin forms (menu, branding) */
   .admin-page .form-group { margin-bottom: 14px; }
-  .admin-page label   { font-size: 0.72rem; }
+  .admin-page label       { font-size: 0.72rem; }
+
+  /* 2-col grids in admin forms → single col */
   .admin-page [style*="grid-template-columns: 1fr 1fr"] {
     grid-template-columns: 1fr !important;
   }
@@ -448,10 +468,11 @@ a { text-decoration: none; color: inherit; }
   .admin-page [style*="grid-column: 1/-1"] {
     grid-column: 1 !important;
   }
+
   /* Forms */
   .form-group input,
   .form-group textarea,
-  .form-group select { font-size: 1rem; }   /* prevent iOS zoom on focus (needs ≥16px) */
+  .form-group select  { font-size: 1rem; }   /* prevent iOS zoom on focus (needs ≥16px) */
   .info-box           { font-size: 0.8rem; }
 
   /* Buttons */
@@ -462,4 +483,17 @@ a { text-decoration: none; color: inherit; }
 
   /* Divider spacing */
   .divider            { margin: 14px 0; }
+
+  /* Landing page mobile fixes */
+  section             { overflow-x: hidden; }
+  section h1          { font-size: 1.7rem !important; }
+  section h2          { font-size: 1.4rem !important; }
+  section [style*="display: flex"][style*="gap"] { flex-wrap: wrap; }
+  section [style*="gridTemplateColumns"] { grid-template-columns: 1fr !important; }
+  section [style*="minmax(260px"] { grid-template-columns: 1fr !important; }
+  section [style*="minmax(180px"] { grid-template-columns: 1fr 1fr !important; }
+  section [style*="minmax(280px"] { grid-template-columns: 1fr !important; }
+  section [style*="maxWidth: 900"],
+  section [style*="maxWidth: 960"],
+  section [style*="maxWidth: 1000"] { padding-left: 16px !important; padding-right: 16px !important; }
 }

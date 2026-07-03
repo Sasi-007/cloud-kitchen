@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PLATFORM_NAME, PLATFORM_EMOJI } from '@/lib/config';
 
 const FEATURES = [
   { icon: '⚡', title: 'Real-time Orders', desc: 'Orders appear instantly on the admin dashboard. No refresh needed.' },
@@ -32,16 +33,17 @@ export default function LandingPage() {
         color: '#fff', textAlign: 'center', padding: '80px 20px 100px',
       }}>
         <div style={{ display: 'inline-block', background: 'rgba(255,255,255,0.2)', borderRadius: 30, padding: '6px 18px', fontSize: '0.82rem', fontWeight: 700, marginBottom: 20, letterSpacing: 1 }}>
-          🚀 Cloud Kitchen SaaS Platform
+          🚀 Cloud Kitchen Ordering Platform
         </div>
         <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.2rem)', fontWeight: 900, margin: '0 0 16px', lineHeight: 1.15 }}>
-          Launch your Cloud Kitchen<br />in minutes, not months
+          {PLATFORM_EMOJI} {PLATFORM_NAME}<br />
+          <span style={{ fontWeight: 400, fontSize: '0.7em', opacity: 0.9 }}>Launch your kitchen in minutes</span>
         </h1>
         <p style={{ fontSize: '1.15rem', opacity: 0.9, maxWidth: 540, margin: '0 auto 36px', lineHeight: 1.6 }}>
           Accept bulk orders for parties & events. Real-time dashboard, WhatsApp notifications, analytics — all in one platform.
         </p>
         <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link href="/login" style={{
+          <Link href="/get-started" style={{
             background: '#fff', color: 'var(--primary)', borderRadius: 14, padding: '14px 28px',
             fontWeight: 800, fontSize: '1rem', textDecoration: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
           }}>
@@ -111,8 +113,8 @@ export default function LandingPage() {
         <h2 style={{ color: '#fff', fontSize: '2rem', fontWeight: 800, marginBottom: 12 }}>Ready to take your first order?</h2>
         <p style={{ color: 'rgba(255,255,255,0.65)', marginBottom: 32, fontSize: '1rem' }}>Join cloud kitchens already using the platform</p>
         <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link href="/login" style={{ background: 'var(--primary)', color: '#fff', borderRadius: 14, padding: '14px 32px', fontWeight: 800, fontSize: '1rem', textDecoration: 'none' }}>
-            Start for Free →
+          <Link href="/get-started" style={{ background: 'var(--primary)', color: '#fff', borderRadius: 14, padding: '14px 32px', fontWeight: 800, fontSize: '1rem', textDecoration: 'none' }}>
+            Get Started →
           </Link>
           <Link href="/pricing" style={{ background: 'transparent', color: '#fff', border: '2px solid rgba(255,255,255,0.3)', borderRadius: 14, padding: '14px 32px', fontWeight: 700, fontSize: '1rem', textDecoration: 'none' }}>
             See Pricing
@@ -122,7 +124,7 @@ export default function LandingPage() {
 
       {/* FOOTER */}
       <footer style={{ background: '#111', color: 'rgba(255,255,255,0.45)', textAlign: 'center', padding: '24px 20px', fontSize: '0.82rem' }}>
-        © {new Date().getFullYear()} CloudKitchen Platform · <Link href="/pricing" style={{ color: 'rgba(255,255,255,0.5)' }}>Pricing</Link> · <Link href="/login" style={{ color: 'rgba(255,255,255,0.5)' }}>Admin Login</Link>
+        © {new Date().getFullYear()} {PLATFORM_NAME} · <Link href="/pricing" style={{ color: 'rgba(255,255,255,0.5)' }}>Pricing</Link> · <Link href="/get-started" style={{ color: 'rgba(255,255,255,0.5)' }}>Get Started</Link> · <Link href="/login" style={{ color: 'rgba(255,255,255,0.5)' }}>Admin Login</Link>
       </footer>
 
     </div>

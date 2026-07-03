@@ -1,0 +1,147 @@
+-- ============================================================
+-- MIGRATIONS — Run AFTER the core schema.sql
+-- Supabase Dashboard → SQL Editor → paste & run
+-- ============================================================
+
+-- ── 1. New columns on existing tables ────────────────────────
+
+alter table orders add column if not exists is_deleted    boolean     default false;
+alter table orders add column if not exists deleted_by    text;
+alter table orders add column if not exists deleted_at    timestamptz;
+alter table orders add column if not exists delivery_date date;
+alter table orders add column if not exists delivery_time text;
+
+alter table kitchens add column if not exists plan text default 'starter'
+  check (plan in ('starter','growth','pro'));
+
+-- ── 2. Fix recursive RLS on profiles ─────────────────────────
+-- The original schema had policies that queried profiles inside
+-- a policy ON profiles → caused infinite recursion. Fix below.
+
+drop policy if exists "Superadmin reads all profiles"  on profiles;
+drop policy if exists "Superadmin updates all profiles" on profiles;
+
+-- Security-definer function reads role WITHOUT triggering RLS
+create or replace function public.get_my_role()
+returns text
+language sql
+security definer
+stable
+as $$
+  select role from public.profiles where id = auth.uid() limit 1;
+$$;
+
+create policy "Superadmin reads all profiles"
+  on profiles for select
+  using (public.get_my_role() = 'superadmin' or auth.uid() = id);
+
+create policy "Superadmin updates all profiles"
+  on profiles for update
+  using (public.get_my_role() = 'superadmin' or auth.uid() = id);
+
+-- ── 3. Allow authenticated users to read their own profile ────
+
+create policy if not exists "Users can read own profile"
+  on profiles for select
+  using (auth.uid() = id);
+
+-- ── 4. Storage bucket RLS policies ───────────────────────────
+-- Run AFTER creating buckets in Dashboard → Storage:
+--   • menu-images  (Public = true)
+--   • branding     (Public = true)
+
+create policy "Admin can upload menu images"
+  on storage.objects for insert
+  with check (bucket_id = 'menu-images' and auth.role() = 'authenticated');
+
+create policy "Admin can update menu images"
+  on storage.objects for update
+  with check (bucket_id = 'menu-images' and auth.role() = 'authenticated');
+
+create policy "Public can read menu images"
+  on storage.objects for select
+  using (bucket_id = 'menu-images');
+
+create policy "Admin can upload branding"
+  on storage.objects for insert
+  with check (bucket_id = 'branding' and auth.role() = 'authenticated');
+
+create policy "Admin can update branding"
+  on storage.objects for update
+  with check (bucket_id = 'branding' and auth.role() = 'authenticated');
+
+create policy "Public can read branding"
+  on storage.objects for select
+  using (bucket_id = 'branding');
+
+-- ── 5. Tickets table (support / incident log) ─────────────────
+
+create table if not exists tickets (
+  id          bigint generated always as identity primary key,
+  kitchen_id  uuid references kitchens(id) on delete cascade,
+  admin_id    uuid references auth.users(id),
+  type        text not null check (type in ('bug','feature','dispute','incident')),
+  title       text not null,
+  description text,
+  status      text default 'open'
+              check (status in ('open','in_progress','resolved','closed')),
+  created_at  timestamptz default now()
+);
+
+alter table tickets enable row level security;
+
+create policy "Admin manages own tickets"
+  on tickets for all
+  using (
+    exists (
+      select 1 from profiles
+      where id = auth.uid() and kitchen_id = tickets.kitchen_id
+    )
+  );
+
+create policy "Superadmin reads all tickets"
+  on tickets for select
+  using (public.get_my_role() = 'superadmin');
+
+create policy "Superadmin updates all tickets"
+  on tickets for update
+  using (public.get_my_role() = 'superadmin');
+
+-- ── 6. Backfill: add kitchen_id to existing feedback rows ─────
+
+update feedback f
+set kitchen_id = o.kitchen_id
+from orders o
+where f.order_id = o.id
+  and f.kitchen_id is null;
+
+-- ── 7. Auto-create profile trigger (if not already created) ───
+
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, name, role)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'name', ''),
+    'customer'
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+-- ── Done ──────────────────────────────────────────────────────
+-- After running this file:
+-- 1. Create storage buckets manually:
+--    Dashboard → Storage → New Bucket
+--    • menu-images  (Public ON)
+--    • branding     (Public ON)
+-- 2. Add to .env.local:
+--    NEXT_PUBLIC_PLATFORM_NAME=SpiceFest
+--    NEXT_PUBLIC_OWNER_PHONE=919876543210  (your WhatsApp, no +)

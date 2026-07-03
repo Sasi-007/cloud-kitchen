@@ -12,7 +12,17 @@ export default function SlugCheckoutPage({ params }) {
   const [cart,    setCart]      = useState({});
   const [payment, setPayment]   = useState('');
   const [loading, setLoading]   = useState(false);
-  const [form,    setForm]      = useState({ name: '', phone: '', address: '', note: '' });
+  const [form, setForm] = useState({ name: '', phone: '', address: '', note: '', delivery_date: '', delivery_time: '' });
+
+  // Generate time slots: 10am–9pm in 1hr intervals
+  const TIME_SLOTS = Array.from({ length: 12 }, (_, i) => {
+    const h = i + 10;
+    const label = h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h - 12}:00 PM`;
+    return label;
+  });
+
+  // Min date = today
+  const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     getSupabase().from('kitchens').select('id,name,upi_id,plan').eq('slug', slug).single()
@@ -42,6 +52,8 @@ export default function SlugCheckoutPage({ params }) {
       customer_phone: form.phone,
       address:        form.address,
       note:           form.note,
+      delivery_date:  form.delivery_date || null,
+      delivery_time:  form.delivery_time || null,
       items:          items.map((i) => ({ name: i.name, qty: i.qty, price: i.price, emoji: i.emoji || '🍽️' })),
       total,
       payment_method: payment,
@@ -72,6 +84,23 @@ export default function SlugCheckoutPage({ params }) {
       </div>
       <div className="form-group"><label>SPECIAL INSTRUCTIONS (optional)</label>
         <input name="note" value={form.note} onChange={field} placeholder="No onion, extra spicy…" />
+      </div>
+
+      <div className="divider" />
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>🗓️ Delivery Schedule</div>
+      <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: 12 }}>Leave blank for earliest delivery, or pick a preferred date &amp; time.</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="form-group">
+          <label>DELIVERY DATE</label>
+          <input name="delivery_date" type="date" value={form.delivery_date} onChange={field} min={today} />
+        </div>
+        <div className="form-group">
+          <label>PREFERRED TIME</label>
+          <select name="delivery_time" value={form.delivery_time} onChange={field} style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid var(--border)', fontSize: '1rem', background: '#fff' }}>
+            <option value="">Any time</option>
+            {TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
       </div>
 
       <div className="divider" />

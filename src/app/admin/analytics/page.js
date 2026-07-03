@@ -3,12 +3,29 @@
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import Link from 'next/link';
+
+function UpgradeWall({ feature }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '80px 20px' }}>
+      <div style={{ fontSize: '3.5rem', marginBottom: 16 }}>🔒</div>
+      <h2 style={{ fontWeight: 800, marginBottom: 8 }}>{feature} — Growth Feature</h2>
+      <p style={{ color: 'var(--muted)', marginBottom: 28, maxWidth: 380, margin: '0 auto 28px' }}>
+        Upgrade to the Growth plan to unlock {feature.toLowerCase()}, analytics, custom branding and more.
+      </p>
+      <Link href="/pricing" className="btn-primary" style={{ maxWidth: 220, margin: '0 auto', display: 'block' }}>View Plans &amp; Upgrade</Link>
+    </div>
+  );
+}
 
 export default function AdminAnalyticsPage() {
   const { profile } = useAuth();
   const [orders,    setOrders]   = useState([]);
   const [feedback,  setFeedback] = useState([]);
   const [loading,   setLoading]  = useState(true);
+
+  const plan = profile?.kitchens?.plan || 'starter';
+  if (profile && plan === 'starter') return <UpgradeWall feature="Analytics" />;
 
   useEffect(() => {
     if (!profile?.kitchen_id) return;

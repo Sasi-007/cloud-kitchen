@@ -100,6 +100,12 @@ export default function OrderTrackingPage({ params }) {
             📍 {order.address}
           </div>
 
+          {(order.delivery_date || order.delivery_time) && (
+            <div style={{ background: '#ede9fe', borderRadius: 10, padding: '10px 14px', marginBottom: 10, fontSize: '0.85rem', fontWeight: 700, color: '#7c3aed', textAlign: 'left' }}>
+              📅 Scheduled delivery: {order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : ''} {order.delivery_time || ''}
+            </div>
+          )}
+
           <div className="tracking-steps">
             {STEPS.map((step, i) => {
               const done   = i < currentIndex;

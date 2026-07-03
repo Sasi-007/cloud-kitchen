@@ -4,16 +4,25 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
-const NAV = [
-  { href: '/admin/orders',    icon: '📋', label: 'Orders'    },
-  { href: '/admin/menu',      icon: '🍽️', label: 'Menu'      },
-  { href: '/admin/branding',  icon: '🎨', label: 'Branding'  },
-  { href: '/admin/analytics', icon: '📊', label: 'Analytics' },
-];
+const PLAN_BADGE = {
+  starter: { label: '🆓 Starter', color: '#6b7280' },
+  growth:  { label: '🔥 Growth',  color: '#ff6b35' },
+  pro:     { label: '⭐ Pro',      color: '#8b5cf6' },
+};
 
 export default function AdminSidebar() {
   const pathname = usePathname();
   const { profile, logout } = useAuth();
+  const plan  = profile?.kitchens?.plan || 'starter';
+  const badge = PLAN_BADGE[plan] || PLAN_BADGE.starter;
+
+  const NAV = [
+    { href: '/admin/orders',    icon: '📋', label: 'Orders',    locked: false },
+    { href: '/admin/menu',      icon: '🍽️', label: 'Menu',      locked: false },
+    { href: '/admin/branding',  icon: '🎨', label: 'Branding',  locked: plan === 'starter' },
+    { href: '/admin/analytics', icon: '📊', label: 'Analytics', locked: plan === 'starter' },
+    { href: '/admin/support',   icon: '🎧', label: 'Support',   locked: false },
+  ];
 
   return (
     <aside className="admin-sidebar">
@@ -21,26 +30,45 @@ export default function AdminSidebar() {
         <span>👨‍🍳</span>
         <div>
           <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{profile?.kitchens?.name || 'Kitchen'}</div>
-          <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>Admin Panel</div>
+          <div style={{ fontSize: '0.7rem', marginTop: 3, display: 'inline-block', background: badge.color + '33', color: badge.color, borderRadius: 6, padding: '1px 7px', fontWeight: 700 }}>
+            {badge.label}
+          </div>
         </div>
       </div>
 
       <nav className="admin-sidebar-nav">
-        {NAV.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`admin-sidebar-link ${pathname.startsWith(item.href) ? 'active' : ''}`}
-          >
-            <span>{item.icon}</span> {item.label}
-          </Link>
-        ))}
+        {NAV.map((item) =>
+          item.locked ? (
+            <span
+              key={item.href}
+              className="admin-sidebar-link"
+              style={{ opacity: 0.45, cursor: 'not-allowed', userSelect: 'none' }}
+              title="🔒 Upgrade to Growth plan to unlock"
+            >
+              <span>{item.icon}</span> {item.label}
+              <span style={{ fontSize: '0.62rem', marginLeft: 'auto' }}>🔒</span>
+            </span>
+          ) : (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`admin-sidebar-link ${pathname.startsWith(item.href) ? 'active' : ''}`}
+            >
+              <span>{item.icon}</span> {item.label}
+            </Link>
+          )
+        )}
       </nav>
 
       <div className="admin-sidebar-footer">
         <Link href={`/${profile?.kitchens?.slug || ''}`} className="admin-sidebar-link" style={{ fontSize: '0.82rem' }}>
           👁️ View Store
         </Link>
+        {plan === 'starter' && (
+          <Link href="/admin/subscription" className="admin-sidebar-link" style={{ fontSize: '0.78rem', background: 'rgba(255,107,53,0.15)', color: '#ff6b35' }}>
+            ⬆️ Upgrade Plan
+          </Link>
+        )}
         <button onClick={logout} className="admin-sidebar-link" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.6)', width: '100%', textAlign: 'left', fontSize: '0.88rem', padding: '10px 12px' }}>
           🚪 Logout
         </button>
