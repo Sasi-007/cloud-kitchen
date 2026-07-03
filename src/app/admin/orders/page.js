@@ -18,6 +18,7 @@ export default function AdminOrdersPage() {
   const [manualCart, setManualCart] = useState({}); // itemId -> {name, price, qty}
   const [saving,     setSaving]     = useState(false);
   const [savedOrderId, setSavedOrderId] = useState(null);
+  const [customItem, setCustomItem] = useState({ name: '', price: '', qty: 1 });
 
   const TIME_SLOTS = Array.from({ length: 12 }, (_, i) => {
     const h = i + 10;
@@ -212,8 +213,8 @@ export default function AdminOrdersPage() {
             <div className="form-group"><label>NOTE</label><input value={manualForm.note} onChange={(e) => setManualForm(p => ({...p, note: e.target.value}))} placeholder="Extra spicy, no onion…" /></div>
           </div>
 
-          <div style={{ fontWeight: 700, marginBottom: 10 }}>Select Items</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, marginBottom: 10 }}>Select Menu Items</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, marginBottom: 14 }}>
             {menuItems.map((item) => {
               const qty = manualCart[item.id]?.qty || 0;
               return (
@@ -230,6 +231,37 @@ export default function AdminOrdersPage() {
                 </div>
               );
             })}
+          </div>
+
+          {/* Custom item — for orders not on the menu */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: '0.85rem' }}>➕ Add Custom Item (not on menu)</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div className="form-group" style={{ margin: 0, flex: 2, minWidth: 140 }}>
+                <label>ITEM NAME</label>
+                <input value={customItem.name} onChange={(e) => setCustomItem(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Special Biryani" />
+              </div>
+              <div className="form-group" style={{ margin: 0, flex: 1, minWidth: 80 }}>
+                <label>PRICE ₹</label>
+                <input type="number" value={customItem.price} onChange={(e) => setCustomItem(p => ({ ...p, price: e.target.value }))} placeholder="500" />
+              </div>
+              <div className="form-group" style={{ margin: 0, width: 70 }}>
+                <label>QTY</label>
+                <input type="number" min="1" value={customItem.qty} onChange={(e) => setCustomItem(p => ({ ...p, qty: Number(e.target.value) }))} />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!customItem.name || !customItem.price) return;
+                  const key = 'custom_' + Date.now();
+                  setManualCart(p => ({ ...p, [key]: { name: customItem.name, price: Number(customItem.price), emoji: '🍽️', qty: customItem.qty } }));
+                  setCustomItem({ name: '', price: '', qty: 1 });
+                }}
+                style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 16px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', marginBottom: 2 }}
+              >
+                Add
+              </button>
+            </div>
           </div>
 
           {Object.values(manualCart).filter(i => i.qty > 0).length > 0 && (

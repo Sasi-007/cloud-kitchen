@@ -69,7 +69,7 @@ export default function KitchenMenuPage({ params }) {
         position: 'relative',
       } : {}}>
         {kitchen?.banner_url && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', borderRadius: 'inherit' }} />}
-        <div style={{ position: 'relative', zIndex: 1 }}>
+        <div style={{ position: 'relative', zIndex: 1, width: '100%' }}>
           {kitchen?.logo_url && (
             <img src={kitchen.logo_url} alt={kitchen.name}
               style={{ width: 72, height: 72, objectFit: 'contain', borderRadius: 16, marginBottom: 12, background: '#fff', padding: 6, boxShadow: '0 2px 12px rgba(0,0,0,0.15)' }}
@@ -78,7 +78,7 @@ export default function KitchenMenuPage({ params }) {
           <h1>{kitchen?.name || 'Order for Your Party 🎉'}</h1>
           <p>{kitchen?.tagline || 'Bulk catering for gatherings & events'}</p>
 
-          <div className="party-selector" style={{ marginBottom: 20 }}>
+          <div className="party-selector">
             <label>👥 Party Size:</label>
             <select value={partySize} onChange={(e) => setPartySize(Number(e.target.value))}>
               {[1, 5, 10, 20, 30, 50, 100].map((n) => (
@@ -89,7 +89,7 @@ export default function KitchenMenuPage({ params }) {
               Min ₹{(partySize * 100).toLocaleString('en-IN')}
             </span>
           </div>
-
+{/* 
           <a href={`/${slug}/orders`} style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
             background: 'rgba(255,255,255,0.18)', border: '1.5px solid rgba(255,255,255,0.45)',
@@ -97,7 +97,19 @@ export default function KitchenMenuPage({ params }) {
             fontWeight: 600, textDecoration: 'none',
           }}>
             📋 Already ordered? Track your order
-          </a>
+          </a> */}
+          <div className="hero-actions">
+            <a href={`/${slug}/orders`} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.18)', border: '1.5px solid rgba(255,255,255,0.45)', color: '#fff', borderRadius: 30, padding: '8px 16px', fontSize: '0.83rem', fontWeight: 600, textDecoration: 'none',
+            }}>📋 Track my order</a>
+            {kitchen?.phone && (
+              <a href={`https://wa.me/${kitchen.phone.replace(/\D/g,'')}?text=${encodeURIComponent(`Hi! I need a custom order from ${kitchen.name}. Can you help?`)}`}
+              target="_blank" rel="noreferrer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,background: 'rgba(255,255,255,0.18)', border: '1.5px solid rgba(255,255,255,0.45)', color: '#fff', borderRadius: 30, padding: '8px 16px', fontSize: '0.83rem', fontWeight: 600, textDecoration: 'none',
+              }}>📝 Custom Order?</a>
+            )}
+          </div>
         </div>
       </div>
 
