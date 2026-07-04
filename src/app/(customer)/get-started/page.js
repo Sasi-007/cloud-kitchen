@@ -3,29 +3,33 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { PLATFORM_NAME, PLATFORM_EMOJI } from '@/lib/config';
+import { getSupabase } from '@/lib/supabase';
 
 export default function GetStartedPage() {
   const [form,      setForm]      = useState({ name: '', kitchen: '', phone: '', email: '', plan: 'growth', message: '' });
   const [submitted, setSubmitted] = useState(false);
+  const [saving,    setSaving]    = useState(false);
 
   function field(e) { setForm((p) => ({ ...p, [e.target.name]: e.target.value })); }
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
-    // Send via WhatsApp to platform owner
+    setSaving(true);
+
+    // Save to DB so superadmin can see it
+    await getSupabase().from('leads').insert({
+      name: form.name, kitchen: form.kitchen, phone: form.phone,
+      email: form.email, plan: form.plan, message: form.message,
+    });
+
+    // Also notify via WhatsApp
     const msg = encodeURIComponent(
-      `🍛 New Kitchen Onboarding Request\n\n` +
-      `👤 Name: ${form.name}\n` +
-      `🏪 Kitchen: ${form.kitchen}\n` +
-      `📞 Phone: ${form.phone}\n` +
-      `📧 Email: ${form.email}\n` +
-      `📦 Plan: ${form.plan}\n` +
-      `💬 Message: ${form.message || 'None'}`
+      `🍛 New Kitchen Onboarding Request\n\n👤 Name: ${form.name}\n🏪 Kitchen: ${form.kitchen}\n📞 Phone: ${form.phone}\n📧 Email: ${form.email}\n📦 Plan: ${form.plan}\n💬 ${form.message || ''}`
     );
     const ownerPhone = process.env.NEXT_PUBLIC_OWNER_PHONE || '';
-    if (ownerPhone) {
-      window.open(`https://wa.me/${ownerPhone}?text=${msg}`, '_blank');
-    }
+    if (ownerPhone) window.open(`https://wa.me/${ownerPhone}?text=${msg}`, '_blank');
+
+    setSaving(false);
     setSubmitted(true);
   }
 
@@ -86,8 +90,8 @@ export default function GetStartedPage() {
             <textarea name="message" value={form.message} onChange={field} rows={3} placeholder="Tell us about your kitchen, cuisine type, expected order volume…" />
           </div>
 
-          <button type="submit" className="btn-primary" style={{ marginTop: 8 }}>
-            📩 Send Request
+          <button type="submit" className="btn-primary" style={{ marginTop: 8 }} disabled={saving}>
+            {saving ? 'Sending…' : '📩 Send Request'}
           </button>
         </form>
 

@@ -357,7 +357,27 @@ export default function AdminOrdersPage() {
 
             <div className="order-items">{items.map((i) => `${i.name} ×${i.qty}`).join(' · ')}{order.note ? ` | 📝 ${order.note}` : ''}</div>
             <div className="order-items" style={{ fontSize: '0.82rem' }}>📍 {order.address}</div>
-            <div className="order-total">₹{order.total}</div>
+            <div className="order-total" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <span>₹{order.total}</span>
+              {order.advance_paid && order.advance_amount > 0 && (
+                <span style={{ fontSize: '0.78rem', background: '#dcfce7', color: '#166534', borderRadius: 8, padding: '3px 10px', fontWeight: 700 }}>
+                  ✅ Advance ₹{order.advance_amount} paid
+                </span>
+              )}
+              {!order.advance_paid && order.total > 0 && (
+                <button
+                  className="action-btn"
+                  style={{ fontSize: '0.75rem', background: '#fef9c3', color: '#854d0e', padding: '5px 10px' }}
+                  onClick={async () => {
+                    const amt = prompt(`Enter advance amount paid (Total: ₹${order.total})`);
+                    if (!amt || isNaN(amt)) return;
+                    await getSupabase().from('orders').update({ advance_paid: true, advance_amount: Number(amt) }).eq('id', order.id);
+                  }}
+                >
+                  💰 Mark Advance
+                </button>
+              )}
+            </div>
 
             {/* CANCELLED ORDER — show undo button */}
             {isCancelled && (

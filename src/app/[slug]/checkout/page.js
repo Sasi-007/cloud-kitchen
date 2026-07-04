@@ -89,7 +89,7 @@ export default function SlugCheckoutPage({ params }) {
       <div className="divider" />
       <div style={{ fontWeight: 700, marginBottom: 4 }}>🗓️ Delivery Schedule</div>
       <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: 12 }}>Leave blank for earliest delivery, or pick a preferred date &amp; time.</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
         <div className="form-group">
           <label>DELIVERY DATE</label>
           <input name="delivery_date" type="date" value={form.delivery_date} onChange={field} min={today} />
