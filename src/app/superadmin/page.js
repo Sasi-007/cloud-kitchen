@@ -13,10 +13,31 @@ export default function SuperAdminPage() {
   const [adminForm,    setAdminForm]    = useState(BLANK_ADMIN);
   const [saving,       setSaving]       = useState(false);
   const [message,      setMessage]      = useState('');
-  const [editId,       setEditId]       = useState(null);   // kitchen id being edited
-  const [editForm,     setEditForm]     = useState({});     // edit field values
+  const [editId,       setEditId]       = useState(null);
+  const [editForm,     setEditForm]     = useState({});
+  const [leads,        setLeads]        = useState([]);
+  const [newLeadPopup, setNewLeadPopup] = useState(null); // latest incoming lead for popup
 
-  useEffect(() => { loadKitchens(); }, []);
+  function loadLeads() {
+    getSupabase().from('leads').select('*').eq('status','new').order('created_at', { ascending: false })
+      .then(({ data }) => setLeads(data || []));
+  }
+
+  useEffect(() => {
+    loadKitchens();
+    loadLeads();
+
+    // Real-time: show popup when a new lead arrives
+    const channel = getSupabase()
+      .channel('superadmin-leads')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leads' }, (payload) => {
+        setNewLeadPopup(payload.new);  // trigger popup
+        loadLeads();                   // refresh lead count
+      })
+      .subscribe();
+
+    return () => getSupabase().removeChannel(channel);
+  }, []);
 
   async function loadKitchens() {
     const { data } = await getSupabase().from('kitchens').select('*').order('created_at', { ascending: false });
@@ -24,7 +45,7 @@ export default function SuperAdminPage() {
   }
 
   function kField(e) { setKitchenForm((p) => ({ ...p, [e.target.name]: e.target.value })); }
-  function aField(e) { setAdminForm((p) => ({   ...p, [e.target.name]: e.target.value })); }
+  function aField(e) { setAdminForm((p) =>   ({ ...p, [e.target.name]: e.target.value })); }
 
   async function onboard() {
     const { name, slug, upi_id, phone } = kitchenForm;
@@ -50,6 +71,19 @@ export default function SuperAdminPage() {
     if (!res.ok) { setMessage('❌ Admin user error: ' + result.error); setSaving(false); return; }
 
     setMessage(`✅ "${name}" onboarded! Admin: ${email}`);
+
+    // Auto-open WhatsApp to share credentials with the new admin
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+    const waMsg   = encodeURIComponent(
+      `🎉 Your kitchen *${name}* is now live!\n\n` +
+      `🍽️ Menu: ${siteUrl}/${slug}\n` +
+      `🔐 Admin login: ${siteUrl}/login\n` +
+      `📧 Email: ${email}\n` +
+      `🔑 Password: ${password}\n\n` +
+      `You can log in and start adding your menu items right away. 🚀`
+    );
+    window.open(`https://wa.me/?text=${waMsg}`, '_blank');
+
     setKitchenForm(BLANK_KITCHEN); setAdminForm(BLANK_ADMIN); setShowForm(false);
     loadKitchens(); setSaving(false);
   }
@@ -78,15 +112,59 @@ export default function SuperAdminPage() {
 
   return (
     <div>
+
+      {/* LIVE NEW LEAD POPUP */}
+      {newLeadPopup && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 1000,
+          background: '#fff', borderRadius: 18, padding: '20px 24px',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.18)', maxWidth: 340,
+          border: '2px solid var(--primary)', animation: 'slideUp 0.4s ease',
+        }}>
+          <div style={{ fontSize: '2rem', marginBottom: 8 }}>🎉</div>
+          <div style={{ fontWeight: 800, fontSize: '1rem', marginBottom: 4 }}>New Lead Received!</div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 14 }}>
+            <b>{newLeadPopup.kitchen || newLeadPopup.name}</b> is interested in joining the platform.
+            {newLeadPopup.plan && <span> Interested in <b>{newLeadPopup.plan}</b> plan.</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <a href="/superadmin/leads" style={{ flex: 1, textAlign: 'center', background: 'var(--primary)', color: '#fff', borderRadius: 10, padding: '9px', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none' }}>
+              View Lead →
+            </a>
+            <button onClick={() => setNewLeadPopup(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 10, padding: '9px 14px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
       <div className="admin-hero" style={{ marginBottom: 24 }}>
         <h2>⚡ Platform Overview</h2>
         <p>Manage all cloud kitchens, onboard new partners, control access</p>
       </div>
 
+      {/* New leads notification */}
+      {leads.length > 0 && (
+        <a href="/superadmin/leads" style={{ textDecoration: 'none' }}>
+          <div style={{ background: 'linear-gradient(135deg,#fff7ed,#ffedd5)', border: '1.5px solid #fed7aa', borderRadius: 14, padding: '14px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+            <div>
+              <div style={{ fontWeight: 800, color: '#c2410c', fontSize: '0.95rem' }}>
+                🔔 {leads.length} new lead{leads.length > 1 ? 's' : ''} waiting!
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#9a3412', marginTop: 2 }}>
+                {leads[0].kitchen} ({leads[0].name}) just submitted an onboarding request.
+                {leads.length > 1 ? ` +${leads.length - 1} more.` : ''}
+              </div>
+            </div>
+            <span style={{ background: '#c2410c', color: '#fff', borderRadius: 8, padding: '6px 14px', fontWeight: 700, fontSize: '0.82rem', whiteSpace: 'nowrap' }}>View Leads →</span>
+          </div>
+        </a>
+      )}
+
       <div className="admin-stats" style={{ marginBottom: 28 }}>
         <div className="stat-card"><div className="stat-val" style={{ color: 'var(--primary)' }}>{kitchens.length}</div><div className="stat-lbl">Total Kitchens</div></div>
         <div className="stat-card"><div className="stat-val" style={{ color: 'var(--green)' }}>{kitchens.filter((k) => k.active).length}</div><div className="stat-lbl">Active</div></div>
         <div className="stat-card"><div className="stat-val" style={{ color: 'var(--red)' }}>{kitchens.filter((k) => !k.active).length}</div><div className="stat-lbl">Inactive</div></div>
+        <div className="stat-card"><div className="stat-val" style={{ color: '#f59e0b' }}>{leads.length}</div><div className="stat-lbl">New Leads</div></div>
       </div>
 
       {message && (

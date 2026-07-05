@@ -16,8 +16,6 @@ export default function OrderTrackingPage({ params }) {
   const { slug, id } = params;
   const [order,      setOrder]      = useState(null);
   const [loading,    setLoading]    = useState(true);
-  const [cancelling, setCancelling] = useState(false);
-  const [cancelErr,  setCancelErr]  = useState('');
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -38,22 +36,6 @@ export default function OrderTrackingPage({ params }) {
 
     return () => supabase.removeChannel(channel);
   }, [id]);
-
-  async function handleCancel() {
-    if (!confirm('Are you sure you want to cancel this order?')) return;
-    setCancelling(true);
-    setCancelErr('');
-    try {
-      const res  = await fetch(`/api/orders/${id}/cancel`, { method: 'POST' });
-      const body = await res.json();
-      if (!res.ok) { setCancelErr(body.error || 'Failed to cancel'); }
-      // Real-time will update order state automatically
-    } catch {
-      setCancelErr('Network error. Please try again.');
-    } finally {
-      setCancelling(false);
-    }
-  }
 
   if (loading) return <div className="page" style={{ textAlign: 'center', paddingTop: 80, color: 'var(--muted)' }}>Loading order…</div>;
   if (!order)  return <div className="page empty-state"><div className="ico">🔍</div><p>Order not found</p></div>;
@@ -106,6 +88,25 @@ export default function OrderTrackingPage({ params }) {
             </div>
           )}
 
+          {/* Order items — customer can see exactly what was ordered (updates if admin edits) */}
+          {(() => {
+            const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
+            return items.length > 0 ? (
+              <div style={{ background: '#f9f9f9', borderRadius: 12, padding: '12px 14px', marginBottom: 10, textAlign: 'left' }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--muted)', marginBottom: 8, letterSpacing: 0.5 }}>YOUR ORDER</div>
+                {items.map((item, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', marginBottom: 4 }}>
+                    <span>{item.emoji || '🍽️'} {item.name} ×{item.qty}</span>
+                    <span style={{ color: 'var(--muted)' }}>₹{item.price * item.qty}</span>
+                  </div>
+                ))}
+                <div style={{ borderTop: '1px solid #eee', marginTop: 8, paddingTop: 6, fontWeight: 700, fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Total</span><span style={{ color: 'var(--primary)' }}>₹{order.total}</span>
+                </div>
+              </div>
+            ) : null;
+          })()}
+
           <div className="tracking-steps">
             {STEPS.map((step, i) => {
               const done   = i < currentIndex;
@@ -131,31 +132,10 @@ export default function OrderTrackingPage({ params }) {
 
           <Link href={`/${slug}`} className="btn-outline" style={{ marginTop: 14 }}>Order Again</Link>
 
-          {/* Cancel button — only when order is still 'new' (not yet in kitchen) */}
-          {order.status === 'new' && (
-            <div style={{ marginTop: 14 }}>
-              {cancelErr && (
-                <div style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: 10, padding: '10px 14px', color: 'var(--red)', fontSize: '0.85rem', marginBottom: 10 }}>
-                  ❌ {cancelErr}
-                </div>
-              )}
-              <button
-                onClick={handleCancel}
-                disabled={cancelling}
-                style={{
-                  width: '100%', padding: '12px', borderRadius: 12,
-                  border: '2px solid var(--red)', background: '#fff',
-                  color: 'var(--red)', fontWeight: 700, fontSize: '0.95rem',
-                  cursor: cancelling ? 'wait' : 'pointer', opacity: cancelling ? 0.7 : 1,
-                }}
-              >
-                {cancelling ? 'Cancelling…' : '❌ Cancel Order'}
-              </button>
-              <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 6, textAlign: 'center' }}>
-                You can only cancel before the kitchen starts preparing
-              </p>
-            </div>
-          )}
+          {/* Contact kitchen for any changes */}
+          <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 12, textAlign: 'center' }}>
+            Need to change or cancel? Contact the kitchen directly.
+          </p>
         </div>
       </div>
     </div>

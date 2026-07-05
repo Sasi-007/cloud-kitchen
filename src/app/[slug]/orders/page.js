@@ -12,6 +12,7 @@ export default function MyOrdersPage({ params }) {
   const { slug } = params;
   const [phone,    setPhone]    = useState('');
   const [orders,   setOrders]   = useState([]);
+  const [customs,  setCustoms]  = useState([]);
   const [searched, setSearched] = useState(false);
   const [loading,  setLoading]  = useState(false);
 
@@ -22,14 +23,17 @@ export default function MyOrdersPage({ params }) {
     setSearched(false);
     const { data: kitchen } = await getSupabase().from('kitchens').select('id,name').eq('slug', slug).single();
     if (!kitchen) { setLoading(false); return; }
-    const { data } = await getSupabase()
-      .from('orders').select('*')
-      .eq('kitchen_id', kitchen.id)
-      .eq('customer_phone', phone.trim())
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: false })
-      .limit(20);
-    setOrders(data || []);
+
+    const [{ data: ord }, { data: cust }] = await Promise.all([
+      getSupabase().from('orders').select('*').eq('kitchen_id', kitchen.id)
+        .eq('customer_phone', phone.trim()).eq('is_deleted', false)
+        .order('created_at', { ascending: false }).limit(20),
+      getSupabase().from('custom_requests').select('*').eq('kitchen_id', kitchen.id)
+        .eq('phone', phone.trim()).order('created_at', { ascending: false }).limit(10),
+    ]);
+
+    setOrders(ord || []);
+    setCustoms(cust || []);
     setSearched(true);
     setLoading(false);
   }
@@ -61,7 +65,7 @@ export default function MyOrdersPage({ params }) {
         </form>
 
         {/* NO RESULTS */}
-        {searched && !orders.length && (
+        {searched && !orders.length && !customs.length && (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔍</div>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>No orders found</div>
@@ -115,6 +119,13 @@ export default function MyOrdersPage({ params }) {
                 {items.map((i) => `${i.emoji || '🍽️'} ${i.name} ×${i.qty}`).join(' · ')}
               </div>
 
+              {/* DELIVERY + CONTACT DETAILS — shows admin-updated values */}
+              <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {order.address && <span>📍 {order.address}</span>}
+                {order.customer_phone && <span>📞 {order.customer_phone}</span>}
+                {order.note && <span>📝 {order.note}</span>}
+              </div>
+
               {/* DELIVERY SLOT */}
               {(order.delivery_date || order.delivery_time) && (
                 <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#7c3aed', background: '#ede9fe', display: 'inline-block', borderRadius: 6, padding: '3px 10px', marginBottom: 10 }}>
@@ -141,6 +152,54 @@ export default function MyOrdersPage({ params }) {
             </div>
           );
         })}
+
+        {/* CUSTOM ORDER REQUESTS */}
+        {customs.length > 0 && (
+          <>
+            {(orders.length > 0) && <div style={{ fontWeight: 700, marginTop: 8, marginBottom: 10, fontSize: '0.82rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>Custom Requests</div>}
+            {customs.map((r) => {
+              const items = Array.isArray(r.items) ? r.items : JSON.parse(r.items || '[]');
+              const CSTATUS = { new: '🟡 Pending Review', reviewing: '🔵 Being Reviewed', quoted: '💬 Quoted', confirmed: '✅ Confirmed', rejected: '⚫ Declined' };
+              const CCOLOR  = { new: '#f59e0b', reviewing: '#3b82f6', quoted: '#8b5cf6', confirmed: '#22c55e', rejected: '#6b7280' };
+              return (
+                <div key={r.id} style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', marginBottom: 12, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Custom Order Request</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{new Date(r.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                    </div>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '4px 10px', borderRadius: 20, background: (CCOLOR[r.status] || '#999') + '20', color: CCOLOR[r.status] || '#999', whiteSpace: 'nowrap' }}>
+                      {CSTATUS[r.status] || r.status}
+                    </span>
+                  </div>
+
+                  {/* Item boxes */}
+                  {items.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                      {items.map((item, idx) => (
+                        <div key={idx} style={{ background: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: 10, padding: '8px 12px' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{item.emoji || '🍽️'} {item.name} {item.qty > 1 && `×${item.qty}`}</div>
+                          {item.note && <div style={{ fontSize: '0.72rem', color: 'var(--primary)', fontStyle: 'italic', marginTop: 2 }}>"{item.note}"</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {r.requirements && <div style={{ fontSize: '0.82rem', color: 'var(--muted)', fontStyle: 'italic', marginBottom: 6 }}>💬 "{r.requirements}"</div>}
+                  {r.event_date && <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>📅 Event: {new Date(r.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>}
+                  {r.total > 0 && <div style={{ fontWeight: 800, color: 'var(--primary)', marginTop: 6 }}>₹{r.total}</div>}
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {searched && orders.length === 0 && customs.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔍</div>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>No orders found</div>
+            <div style={{ fontSize: '0.85rem' }}>Make sure you enter the same number used at checkout</div>
+          </div>
+        )}
       </div>
     </div>
   );

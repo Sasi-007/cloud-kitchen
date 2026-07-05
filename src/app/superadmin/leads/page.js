@@ -3,10 +3,9 @@
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 
-const STATUS_OPTIONS = ['new','contacted','onboarded','rejected'];
+const STATUS_OPTIONS = ['new','onboarded','rejected'];
 const STATUS_BADGE = {
   new:       { label: '🟡 New',       bg: '#fef9c3', color: '#854d0e' },
-  contacted: { label: '🔵 Contacted', bg: '#dbeafe', color: '#1e40af' },
   onboarded: { label: '✅ Onboarded', bg: '#dcfce7', color: '#166534' },
   rejected:  { label: '⚫ Rejected',  bg: '#f3f4f6', color: '#6b7280' },
 };
@@ -86,6 +85,14 @@ export default function SuperAdminLeadsPage() {
               <button onClick={() => contactWhatsApp(lead)} style={{ background: '#dcfce7', color: '#166534', border: 'none', borderRadius: 8, padding: '7px 12px', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>
                 📱 WhatsApp
               </button>
+              {lead.status !== 'onboarded' && (
+                <a
+                  href="/superadmin"
+                  style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 12px', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', textDecoration: 'none' }}
+                >
+                  🚀 Onboard Kitchen →
+                </a>
+              )}
               {STATUS_OPTIONS.filter(s => s !== lead.status).map((s) => (
                 <button key={s} onClick={() => updateStatus(lead.id, s)}
                   style={{ background: STATUS_BADGE[s].bg, color: STATUS_BADGE[s].color, border: 'none', borderRadius: 8, padding: '7px 12px', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>

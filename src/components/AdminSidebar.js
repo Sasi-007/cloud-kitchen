@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -39,15 +39,33 @@ export default function AdminSidebar() {
       <nav className="admin-sidebar-nav">
         {NAV.map((item) =>
           item.locked ? (
-            <span
-              key={item.href}
-              className="admin-sidebar-link"
-              style={{ opacity: 0.45, cursor: 'not-allowed', userSelect: 'none' }}
-              title="🔒 Upgrade to Growth plan to unlock"
+            <div key={item.href} className="sidebar-locked-wrap"
+              onMouseEnter={(e) => {
+                const tip = e.currentTarget.querySelector('.sidebar-tooltip');
+                if (!tip) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                // On desktop sidebar (vertical): show to the right
+                // On mobile top bar: show below
+                if (rect.left < 250) {
+                  tip.style.left  = (rect.right + 10) + 'px';
+                  tip.style.top   = rect.top + 'px';
+                } else {
+                  tip.style.left  = rect.left + 'px';
+                  tip.style.top   = (rect.bottom + 8) + 'px';
+                }
+              }}
             >
-              <span>{item.icon}</span> {item.label}
-              <span style={{ fontSize: '0.62rem', marginLeft: 'auto' }}>🔒</span>
-            </span>
+              <span
+                className="admin-sidebar-link sidebar-locked"
+              >
+                <span>{item.icon}</span> {item.label}
+                <span style={{ fontSize: '0.62rem', marginLeft: 'auto' }}>🔒</span>
+              </span>
+              <div className="sidebar-tooltip">
+                <div style={{ fontWeight: 700, marginBottom: 3 }}>✨ {item.label} — Growth Feature</div>
+                <div style={{ opacity: 0.85, fontSize: '0.75rem' }}>Upgrade your plan to unlock this and more premium features.</div>
+              </div>
+            </div>
           ) : (
             <Link
               key={item.href}

@@ -78,6 +78,7 @@ export default function KitchenMenuPage({ params }) {
           <h1>{kitchen?.name || 'Order for Your Party 🎉'}</h1>
           <p>{kitchen?.tagline || 'Bulk catering for gatherings & events'}</p>
 
+          {/* Party size — full width row */}
           <div className="party-selector">
             <label>👥 Party Size:</label>
             <select value={partySize} onChange={(e) => setPartySize(Number(e.target.value))}>
@@ -89,25 +90,29 @@ export default function KitchenMenuPage({ params }) {
               Min ₹{(partySize * 100).toLocaleString('en-IN')}
             </span>
           </div>
-{/* 
-          <a href={`/${slug}/orders`} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: 'rgba(255,255,255,0.18)', border: '1.5px solid rgba(255,255,255,0.45)',
-            color: '#fff', borderRadius: 30, padding: '8px 18px', fontSize: '0.85rem',
-            fontWeight: 600, textDecoration: 'none',
-          }}>
-            📋 Already ordered? Track your order
-          </a> */}
+
+          {/* Action links — below party selector */}
           <div className="hero-actions">
             <a href={`/${slug}/orders`} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.18)', border: '1.5px solid rgba(255,255,255,0.45)', color: '#fff', borderRadius: 30, padding: '8px 16px', fontSize: '0.83rem', fontWeight: 600, textDecoration: 'none',
-            }}>📋 Track my order</a>
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: 'rgba(255,255,255,0.18)', border: '1.5px solid rgba(255,255,255,0.45)',
+              color: '#fff', borderRadius: 30, padding: '8px 16px', fontSize: '0.83rem',
+              fontWeight: 600, textDecoration: 'none',
+            }}>
+              📋 Track my order
+            </a>
             {kitchen?.phone && (
-              <a href={`https://wa.me/${kitchen.phone.replace(/\D/g,'')}?text=${encodeURIComponent(`Hi! I need a custom order from ${kitchen.name}. Can you help?`)}`}
-              target="_blank" rel="noreferrer"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,background: 'rgba(255,255,255,0.18)', border: '1.5px solid rgba(255,255,255,0.45)', color: '#fff', borderRadius: 30, padding: '8px 16px', fontSize: '0.83rem', fontWeight: 600, textDecoration: 'none',
-              }}>📝 Custom Order?</a>
+              <a
+                href={`/${slug}/custom-order`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  background: 'rgba(255,255,255,0.18)', border: '1.5px solid rgba(255,255,255,0.45)',
+                  color: '#fff', borderRadius: 30, padding: '8px 16px', fontSize: '0.83rem',
+                  fontWeight: 600, textDecoration: 'none',
+                }}
+              >
+                📝 Custom Order?
+              </a>
             )}
           </div>
         </div>

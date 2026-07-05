@@ -43,11 +43,14 @@ export default function AdminAnalyticsPage() {
     load();
   }, [profile]);
 
-  const today     = new Date().toDateString();
-  const todayOrders   = orders.filter((o) => new Date(o.created_at).toDateString() === today);
-  const todayRevenue  = todayOrders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.total, 0);
-  const totalRevenue  = orders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.total, 0);
-  const avgRating     = feedback.length ? (feedback.reduce((s, f) => s + f.rating, 0) / feedback.length).toFixed(1) : 'N/A';
+  const today          = new Date().toDateString();
+  const todayOrders    = orders.filter((o) => new Date(o.created_at).toDateString() === today);
+  const todayRevenue   = todayOrders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.total, 0);
+  const totalRevenue   = orders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.total, 0);
+  const confirmedAmt   = orders.reduce((s, o) => s + (o.amount_received || 0), 0);
+  const pendingAmt     = orders.filter((o) => o.payment_status !== 'confirmed' && !o.is_deleted)
+                               .reduce((s, o) => s + (o.total - (o.amount_received || 0)), 0);
+  const avgRating      = feedback.length ? (feedback.reduce((s, f) => s + f.rating, 0) / feedback.length).toFixed(1) : 'N/A';
 
   // Popular items
   const itemCount = {};
@@ -76,11 +79,12 @@ export default function AdminAnalyticsPage() {
       <div className="admin-stats" style={{ marginBottom: 28 }}>
         <div className="stat-card"><div className="stat-val" style={{ color: 'var(--green)' }}>₹{todayRevenue.toLocaleString('en-IN')}</div><div className="stat-lbl">Today&apos;s Revenue</div></div>
         <div className="stat-card"><div className="stat-val" style={{ color: 'var(--primary)' }}>{todayOrders.length}</div><div className="stat-lbl">Today&apos;s Orders</div></div>
-        <div className="stat-card"><div className="stat-val" style={{ color: '#8b5cf6' }}>₹{totalRevenue.toLocaleString('en-IN')}</div><div className="stat-lbl">Total Revenue</div></div>
+        <div className="stat-card"><div className="stat-val" style={{ color: '#8b5cf6' }}>₹{confirmedAmt.toLocaleString('en-IN')}</div><div className="stat-lbl">Collected</div></div>
+        {pendingAmt > 0 && <div className="stat-card"><div className="stat-val" style={{ color: 'var(--yellow)' }}>₹{pendingAmt.toLocaleString('en-IN')}</div><div className="stat-lbl">Pending Payment</div></div>}
         <div className="stat-card"><div className="stat-val" style={{ color: 'var(--yellow)' }}>⭐ {avgRating}</div><div className="stat-lbl">Avg Rating ({feedback.length} reviews)</div></div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18, marginBottom: 28 }}>
         {/* Revenue Chart (last 7 days) */}
         <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)' }}>
           <div style={{ fontWeight: 700, marginBottom: 16 }}>Last 7 Days Revenue</div>

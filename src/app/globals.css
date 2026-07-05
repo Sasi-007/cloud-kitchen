@@ -87,6 +87,10 @@ a { text-decoration: none; color: inherit; }
   from { transform: scaleX(1); }
   to   { transform: scaleX(0); }
 }
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
 /* ── LAYOUT ───────────────────────────────────────── */
 .page { max-width: 900px; margin: 0 auto; padding: 24px 16px; min-height: 80vh; }
@@ -350,6 +354,23 @@ a { text-decoration: none; color: inherit; }
 .admin-main { flex: 1; overflow-y: auto; background: var(--bg); }
 .admin-page { max-width: 960px; margin: 0 auto; padding: 28px 20px; }
 
+/* ── Locked sidebar item tooltip ────────────────────── */
+.sidebar-locked-wrap {
+  position: relative;
+  /* No display:contents — keep as block so flex children work correctly */
+}
+.sidebar-locked { opacity: 0.45; cursor: not-allowed; user-select: none; width: 100%; }
+.sidebar-tooltip {
+  display: none;
+  position: fixed;
+  background: #1a1a2e; border: 1px solid rgba(255,107,53,0.5);
+  color: #fff; border-radius: 10px; padding: 10px 14px;
+  font-size: 0.82rem; z-index: 9999;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  pointer-events: none; max-width: 240px; line-height: 1.5;
+}
+.sidebar-locked-wrap:hover .sidebar-tooltip { display: block; }
+
 /* ═══════════════════════════════════════════════════
    MOBILE & RESPONSIVE STYLES
 ═══════════════════════════════════════════════════ */
@@ -391,6 +412,8 @@ a { text-decoration: none; color: inherit; }
     border-top: none; border-left: 1px solid rgba(255,255,255,0.1);
     padding: 6px 10px; flex-shrink: 0; display: flex; align-items: center;
   }
+  /* Tooltip — just hide on mobile to keep nav clean */
+  .sidebar-tooltip       { display: none !important; }
   .admin-main         { overflow-y: unset; }
 }
 
@@ -492,3 +515,4 @@ a { text-decoration: none; color: inherit; }
   /* Landing page sections */
   section             { overflow-x: hidden; }
 }
+
