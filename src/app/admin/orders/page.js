@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import CountdownTimer from '@/components/CountdownTimer';
 
 const STATUS_LABELS = { new: '🟡 New', progress: '🔵 In Progress', delivered: '✅ Delivered' };
 const STATUS_BADGE  = { new: 'badge-new', progress: 'badge-progress', delivered: 'badge-delivered' };
@@ -53,6 +54,11 @@ export default function AdminOrdersPage() {
       .eq('status', 'new').order('created_at', { ascending: false })
       .then(({ data }) => setCustomReqs(data || []));
 
+    // Load open disputes
+    supabase.from('disputes').select('*').eq('kitchen_id', profile.kitchen_id)
+      .eq('status', 'open').order('created_at', { ascending: false })
+      .then(({ data }) => setDisputes(data || []));
+
     // Real-time: new orders, status changes, cancellations
     const channel = supabase
       .channel('admin-orders')
@@ -66,7 +72,28 @@ export default function AdminOrdersPage() {
   }, [profile]);
 
   async function updateStatus(id, status) {
-    await getSupabase().from('orders').update({ status }).eq('id', id);
+    if (status === 'progress') {
+      // Ask for prep time estimate
+      const mins = prompt('Estimated preparation time (minutes)?\nPress OK for default 45 mins or enter custom value:', '45');
+      if (mins === null) return; // cancelled
+      const estimated = Math.max(5, Number(mins) || 45);
+      await getSupabase().from('orders').update({
+        status,
+        estimated_minutes: estimated,
+        timer_started_at:  new Date().toISOString(),
+      }).eq('id', id);
+    } else if (status === 'out') {
+      const mins = prompt('Estimated delivery time (minutes)?\nPress OK for default 20 mins:', '20');
+      if (mins === null) return;
+      const estimated = Math.max(5, Number(mins) || 20);
+      await getSupabase().from('orders').update({
+        status,
+        estimated_minutes: estimated,
+        timer_started_at:  new Date().toISOString(),
+      }).eq('id', id);
+    } else {
+      await getSupabase().from('orders').update({ status }).eq('id', id);
+    }
     if (status === 'delivered') {
       const order = orders.find((o) => o.id === id);
       if (order) sendFeedbackWhatsApp(order);
@@ -173,6 +200,7 @@ export default function AdminOrdersPage() {
   const [customReqs, setCustomReqs] = useState([]);
   const [editingOrder, setEditingOrder] = useState(null);
   const [editCart,     setEditCart]     = useState({});
+  const [disputes,     setDisputes]     = useState([]);
 
   // Separate active vs cancelled orders
   const activeOrders    = orders.filter((o) => !o.is_deleted);
@@ -185,20 +213,21 @@ export default function AdminOrdersPage() {
     filter === 'all'       ? activeOrders :
     activeOrders.filter((o) => o.status === filter);
 
-  const filtered = search.trim()
-    ? tabFiltered.filter((o) => {
-        const q = search.trim().toLowerCase();
-        // Match: order id (partial), customer name, phone, address, items
-        const items = Array.isArray(o.items) ? o.items : JSON.parse(o.items || '[]');
-        return (
-          o.id.toLowerCase().includes(q) ||
-          o.customer_name?.toLowerCase().includes(q) ||
-          o.customer_phone?.includes(q) ||
-          o.address?.toLowerCase().includes(q) ||
-          items.some((i) => i.name?.toLowerCase().includes(q))
-        );
-      })
-    : tabFiltered;
+  const filtered = sortByDelivery(
+    search.trim()
+      ? tabFiltered.filter((o) => {
+          const q = search.trim().toLowerCase();
+          const items = Array.isArray(o.items) ? o.items : JSON.parse(o.items || '[]');
+          return (
+            o.id.toLowerCase().includes(q) ||
+            o.customer_name?.toLowerCase().includes(q) ||
+            o.customer_phone?.includes(q) ||
+            o.address?.toLowerCase().includes(q) ||
+            items.some((i) => i.name?.toLowerCase().includes(q))
+          );
+        })
+      : tabFiltered
+  );
 
   const newCount      = activeOrders.filter((o) => o.status === 'new').length;
   const progCount     = activeOrders.filter((o) => o.status === 'progress').length;
@@ -206,6 +235,22 @@ export default function AdminOrdersPage() {
   const revenue       = activeOrders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.total, 0);
   const unpaidOrders  = activeOrders.filter((o) => o.payment_status !== 'confirmed');
   const pendingAmount = unpaidOrders.reduce((s, o) => s + (o.total - (o.amount_received || 0)), 0);
+
+  // Sort: orders with earliest delivery_date+time first, then by created_at
+  function sortByDelivery(list) {
+    return [...list].sort((a, b) => {
+      const aHasDate = !!a.delivery_date;
+      const bHasDate = !!b.delivery_date;
+      if (aHasDate && bHasDate) {
+        const aTime = `${a.delivery_date} ${a.delivery_time || '00:00'}`;
+        const bTime = `${b.delivery_date} ${b.delivery_time || '00:00'}`;
+        return aTime.localeCompare(bTime); // earliest delivery first
+      }
+      if (aHasDate && !bHasDate) return -1; // scheduled orders first
+      if (!aHasDate && bHasDate) return  1;
+      return new Date(b.created_at) - new Date(a.created_at); // latest placed first
+    });
+  }
 
   return (
     <div className="admin-page">
@@ -574,6 +619,40 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
+      {/* DISPUTES ALERT */}
+      {disputes.length > 0 && (
+        <div style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: 12, padding: '14px 16px', marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, color: '#991b1b', marginBottom: 10 }}>⚠️ {disputes.length} Open Dispute{disputes.length > 1 ? 's' : ''}</div>
+          {disputes.map((d) => (
+            <div key={d.id} style={{ background: '#fff', borderRadius: 10, padding: '10px 14px', marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{d.customer_name} — {d.type}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>📞 {d.customer_phone} · Order #{d.order_id}</div>
+                </div>
+                <span style={{ fontSize: '0.72rem', background: '#fee2e2', color: '#991b1b', borderRadius: 20, padding: '2px 10px', fontWeight: 700, height: 'fit-content' }}>🔴 Open</span>
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text)', marginBottom: 8 }}>{d.description}</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <a href={`https://wa.me/${d.customer_phone?.replace(/\D/g,'')}?text=${encodeURIComponent(`Hi ${d.customer_name}! We received your dispute regarding order #${d.order_id}. Let us resolve this for you.`)}`}
+                  target="_blank" rel="noreferrer"
+                  style={{ background: '#25d366', color: '#fff', borderRadius: 8, padding: '6px 12px', fontWeight: 700, fontSize: '0.78rem', textDecoration: 'none' }}>
+                  📱 Contact
+                </a>
+                {['reviewing','resolved'].map((s) => (
+                  <button key={s} onClick={async () => {
+                    await getSupabase().from('disputes').update({ status: s }).eq('id', d.id);
+                    setDisputes(p => s === 'resolved' ? p.filter(x => x.id !== d.id) : p.map(x => x.id === d.id ? {...x, status: s} : x));
+                  }} style={{ background: s === 'resolved' ? '#dcfce7' : '#dbeafe', color: s === 'resolved' ? '#166534' : '#1e40af', border: 'none', borderRadius: 8, padding: '6px 12px', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>
+                    {s === 'resolved' ? '✅ Resolve' : '🔵 Mark Reviewing'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* SEARCH BAR */}
       <div style={{ marginBottom: 16 }}>
         <input
@@ -634,11 +713,21 @@ export default function AdminOrdersPage() {
                 <small>
                   📞 {order.customer_phone} &nbsp;|&nbsp;
                   💳 {order.payment_method?.toUpperCase()} &nbsp;|&nbsp;
+                  �️ {new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} &nbsp;
                   🕐 {new Date(order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                 </small>
                 {(order.delivery_date || order.delivery_time) && (
-                  <div style={{ marginTop: 4, fontSize: '0.8rem', fontWeight: 700, color: '#7c3aed', background: '#ede9fe', display: 'inline-block', borderRadius: 6, padding: '2px 8px' }}>
-                    📅 {order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''} {order.delivery_time || ''}
+                  <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', fontWeight: 700, color: '#7c3aed', background: '#ede9fe', borderRadius: 8, padding: '4px 10px' }}>
+                    📅 Deliver: {order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : 'Date TBD'} {order.delivery_time ? `at ${order.delivery_time}` : ''}
+                  </div>
+                )}
+                {/* Live countdown when in progress or out */}
+                {(order.status === 'progress' || order.status === 'out') && order.timer_started_at && order.estimated_minutes && (
+                  <div style={{ marginTop: 4 }}>
+                    <CountdownTimer startedAt={order.timer_started_at} minutes={order.estimated_minutes} />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--muted)', marginLeft: 6 }}>
+                      {order.status === 'progress' ? 'prep time' : 'delivery time'}
+                    </span>
                   </div>
                 )}
               </div>

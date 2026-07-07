@@ -3,6 +3,50 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
+import CountdownTimer from '@/components/CountdownTimer';
+
+function DisputeForm({ orderId, kitchenId, customerName, customerPhone }) {
+  const [type,    setType]    = useState('payment');
+  const [desc,    setDesc]    = useState('');
+  const [done,    setDone]    = useState(false);
+  const [saving,  setSaving]  = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!desc.trim()) return;
+    setSaving(true);
+    await getSupabase().from('disputes').insert({
+      order_id: orderId, kitchen_id: kitchenId,
+      customer_name: customerName, customer_phone: customerPhone,
+      type, description: desc,
+    });
+    setDone(true);
+    setSaving(false);
+  }
+
+  if (done) return <p style={{ marginTop: 10, fontSize: '0.82rem', color: 'var(--green)', fontWeight: 600 }}>✅ Dispute raised. The kitchen team will review and contact you.</p>;
+
+  return (
+    <form onSubmit={submit} style={{ marginTop: 10, background: '#fff8f5', borderRadius: 12, padding: '14px 16px', border: '1px solid #ffcbb0' }}>
+      <div style={{ marginBottom: 10 }}>
+        <select value={type} onChange={(e) => setType(e.target.value)}
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.95rem', background: '#fff', marginBottom: 8 }}>
+          <option value="payment">💳 Payment Issue</option>
+          <option value="delivery">🚚 Delivery Issue</option>
+          <option value="quality">🍽️ Food Quality Issue</option>
+          <option value="other">⚠️ Other</option>
+        </select>
+        <textarea value={desc} onChange={(e) => setDesc(e.target.value)} required rows={3}
+          placeholder="Describe the issue clearly…"
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.95rem', resize: 'none' }} />
+      </div>
+      <button type="submit" disabled={saving}
+        style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem' }}>
+        {saving ? 'Submitting…' : '📩 Submit Dispute'}
+      </button>
+    </form>
+  );
+}
 
 const STEPS = [
   { key: 'new',       label: 'Order Placed',    sub: 'Kitchen notified' },
@@ -36,6 +80,22 @@ export default function OrderTrackingPage({ params }) {
 
     return () => supabase.removeChannel(channel);
   }, [id]);
+
+  async function handleCancel() {
+    if (!confirm('Are you sure you want to cancel this order?')) return;
+    setCancelling(true);
+    setCancelErr('');
+    try {
+      const res  = await fetch(`/api/orders/${id}/cancel`, { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) { setCancelErr(body.error || 'Failed to cancel'); }
+      // Real-time will update order state automatically
+    } catch {
+      setCancelErr('Network error. Please try again.');
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   if (loading) return <div className="page" style={{ textAlign: 'center', paddingTop: 80, color: 'var(--muted)' }}>Loading order…</div>;
   if (!order)  return <div className="page empty-state"><div className="ico">🔍</div><p>Order not found</p></div>;
@@ -88,6 +148,18 @@ export default function OrderTrackingPage({ params }) {
             </div>
           )}
 
+          {/* Live countdown for customer */}
+          {(order.status === 'progress' || order.status === 'out') && order.timer_started_at && order.estimated_minutes && (
+            <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 12, padding: '14px 18px', marginBottom: 12, textAlign: 'center' }}>
+              <div style={{ fontSize: '0.82rem', color: '#166534', marginBottom: 6, fontWeight: 600 }}>
+                {order.status === 'progress' ? '👨‍🍳 Estimated prep time remaining' : '🚚 Estimated delivery time remaining'}
+              </div>
+              <div style={{ fontSize: '2rem', fontWeight: 900 }}>
+                <CountdownTimer startedAt={order.timer_started_at} minutes={order.estimated_minutes} />
+              </div>
+            </div>
+          )}
+
           {/* Order items — customer can see exactly what was ordered (updates if admin edits) */}
           {(() => {
             const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
@@ -136,6 +208,14 @@ export default function OrderTrackingPage({ params }) {
           <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 12, textAlign: 'center' }}>
             Need to change or cancel? Contact the kitchen directly.
           </p>
+
+          {/* Raise a dispute */}
+          {order.status !== 'new' && (
+            <details style={{ marginTop: 14 }}>
+              <summary style={{ fontSize: '0.8rem', color: 'var(--muted)', cursor: 'pointer', fontWeight: 600 }}>⚠️ Report an issue with this order</summary>
+              <DisputeForm orderId={order.id} kitchenId={order.kitchen_id} customerName={order.customer_name} customerPhone={order.customer_phone} />
+            </details>
+          )}
         </div>
       </div>
     </div>

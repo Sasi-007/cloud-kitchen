@@ -14,6 +14,7 @@ export default function KitchenMenuPage({ params }) {
   const [partySize,  setPartySize]  = useState(10);
   const [loading,    setLoading]    = useState(true);
   const [notFound,   setNotFound]   = useState(false);
+  const [reviews,    setReviews]    = useState([]);
 
   useEffect(() => {
     async function load() {
@@ -27,6 +28,13 @@ export default function KitchenMenuPage({ params }) {
         .eq('kitchen_id', k.id).eq('active', true)
         .order('category').order('sort_order');
       setMenuItems(items || []);
+
+      // Load approved reviews for trust display
+      const { data: rev } = await supabase.from('feedback')
+        .select('rating,comment,tags,is_manual,manual_note')
+        .eq('kitchen_id', k.id).eq('visible_to_customer', true)
+        .order('created_at', { ascending: false }).limit(6);
+      setReviews(rev || []);
 
       try {
         const saved = JSON.parse(localStorage.getItem(`ck_cart_${slug}`) || '{}');
@@ -166,6 +174,22 @@ export default function KitchenMenuPage({ params }) {
         })}
       </div>
       {!filtered.length && <div className="empty-state"><div className="ico">🍽️</div><p>No items in this category yet.</p></div>}
+
+      {/* APPROVED REVIEWS — builds trust */}
+      {reviews.length > 0 && (
+        <div style={{ marginTop: 32 }}>
+          <div style={{ fontWeight: 800, fontSize: '1rem', marginBottom: 14 }}>⭐ What customers say</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+            {reviews.map((r, i) => (
+              <div key={i} style={{ background: '#fff', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>{'⭐'.repeat(r.rating)}</div>
+                {r.comment && <div style={{ fontSize: '0.88rem', color: 'var(--text)', fontStyle: 'italic', lineHeight: 1.5 }}>"{r.comment}"</div>}
+                {r.tags?.length > 0 && <div style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: 6 }}>{r.tags.join(' · ')}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* CONTACT KITCHEN FOOTER */}
       {(kitchen?.phone || kitchen?.address) && (

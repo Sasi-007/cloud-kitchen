@@ -95,7 +95,7 @@ export default function SuperAdminPage() {
 
   function startEdit(k) {
     setEditId(k.id);
-    setEditForm({ name: k.name, slug: k.slug, tagline: k.tagline || '', phone: k.phone || '', upi_id: k.upi_id || '', address: k.address || '' });
+    setEditForm({ name: k.name, slug: k.slug, tagline: k.tagline || '', phone: k.phone || '', upi_id: k.upi_id || '', address: k.address || '', plan: k.plan || 'starter' });
   }
 
   async function saveEdit(id) {

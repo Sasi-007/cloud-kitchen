@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import React from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
@@ -137,47 +138,86 @@ export default function AdminAnalyticsPage() {
 
       {/* Recent Feedback */}
       <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
           <div style={{ fontWeight: 700 }}>Customer Feedback</div>
           <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{feedback.length} total review{feedback.length !== 1 ? 's' : ''}</div>
         </div>
 
-        {!feedback.length && <p style={{ color: 'var(--muted)', fontSize: '0.88rem' }}>No feedback yet — feedback appears after customers rate their delivered orders.</p>}
-
-        {/* Improvement tips based on negative tags */}
+        {/* Add manual feedback (phone call feedback) */}
         {(() => {
-          const allTags = feedback.flatMap((f) => f.tags || []);
-          const tips = [];
-          if (allTags.filter((t) => t.includes('Delayed')).length >= 2)   tips.push('⚡ Multiple customers reported slow delivery — review delivery time estimates');
-          if (allTags.filter((t) => t.includes('Average')).length >= 2)   tips.push('😐 Some customers felt experience was average — consider following up personally');
-          if (allTags.filter((t) => t.includes('hot')).length >= 2)       tips.push('🌡️ Customers liked hot food — maintain packaging quality');
-          if (feedback.filter((f) => f.rating <= 2).length >= 1)          tips.push('⚠️ You have low ratings — read those comments carefully and reach out to the customer');
-          if (!tips.length && feedback.length >= 3)                        tips.push('✅ Great feedback overall — keep it up!');
-          return tips.length > 0 ? (
-            <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 12, padding: '12px 16px', marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 8, color: '#92400e' }}>💡 Insights to improve</div>
-              {tips.map((t, i) => <div key={i} style={{ fontSize: '0.82rem', color: '#78350f', marginBottom: 4 }}>• {t}</div>)}
+          const [showManual, setShowManual] = React.useState(false);
+          const [mForm, setMForm]   = React.useState({ name: '', rating: 5, comment: '' });
+          const [mSaving, setMSaving] = React.useState(false);
+          async function saveManual() {
+            if (!mForm.name || !mForm.comment) { alert('Name and comment required'); return; }
+            setMSaving(true);
+            await getSupabase().from('feedback').insert({
+              kitchen_id: profile.kitchen_id,
+              rating:     mForm.rating,
+              comment:    mForm.comment,
+              tags:       [],
+              is_manual:  true,
+              manual_note: `From: ${mForm.name} (phone call)`,
+            });
+            setMForm({ name: '', rating: 5, comment: '' });
+            setShowManual(false);
+            setMSaving(false);
+            // reload
+            const { data: f } = await getSupabase().from('feedback').select('*, orders(customer_name, customer_phone)').eq('kitchen_id', profile.kitchen_id).order('created_at', { ascending: false });
+            setFeedback(f || []);
+          }
+          return (
+            <div style={{ marginBottom: 16 }}>
+              <button onClick={() => setShowManual(!showManual)} style={{ background: '#eff6ff', color: '#1e40af', border: 'none', borderRadius: 8, padding: '7px 14px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
+                {showManual ? '✕ Cancel' : '📞 Add Phone Call Feedback'}
+              </button>
+              {showManual && (
+                <div style={{ marginTop: 12, background: '#f8faff', borderRadius: 12, padding: '14px 16px', border: '1px solid #bfdbfe' }}>
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                    <div className="form-group" style={{ flex: 1, margin: 0, minWidth: 120 }}><label>CUSTOMER NAME</label><input value={mForm.name} onChange={(e) => setMForm(p => ({...p, name: e.target.value}))} placeholder="Ravi Kumar" /></div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label>RATING</label>
+                      <select value={mForm.rating} onChange={(e) => setMForm(p => ({...p, rating: Number(e.target.value)}))}
+                        style={{ padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '1rem' }}>
+                        {[5,4,3,2,1].map(n => <option key={n} value={n}>{'⭐'.repeat(n)} {n}/5</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="form-group" style={{ margin: 0, marginBottom: 10 }}><label>COMMENT</label><textarea value={mForm.comment} onChange={(e) => setMForm(p => ({...p, comment: e.target.value}))} rows={2} placeholder="What did the customer say on the call?" /></div>
+                  <button onClick={saveManual} disabled={mSaving} style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
+                    {mSaving ? 'Saving…' : '💾 Save Feedback'}
+                  </button>
+                </div>
+              )}
             </div>
-          ) : null;
+          );
         })()}
 
-        {feedback.slice(0, 10).map((f) => (
+        {!feedback.length && <p style={{ color: 'var(--muted)', fontSize: '0.88rem' }}>No feedback yet.</p>}
+
+        {feedback.slice(0, 20).map((f) => (
           <div key={f.id} style={{ padding: '14px 0', borderBottom: '1px solid #f0f0f0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4, flexWrap: 'wrap', gap: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontWeight: 700 }}>{'⭐'.repeat(f.rating)}{'☆'.repeat(5 - f.rating)}</span>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: f.rating >= 4 ? 'var(--green)' : f.rating === 3 ? 'var(--yellow)' : 'var(--red)' }}>
-                  {f.rating}/5
-                </span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: f.rating >= 4 ? 'var(--green)' : f.rating === 3 ? 'var(--yellow)' : 'var(--red)' }}>{f.rating}/5</span>
+                {f.is_manual && <span style={{ fontSize: '0.68rem', background: '#dbeafe', color: '#1e40af', borderRadius: 20, padding: '1px 7px', fontWeight: 700 }}>📞 Manual</span>}
               </div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{new Date(f.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{new Date(f.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                {/* Toggle visibility on customer page */}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, color: f.visible_to_customer ? 'var(--green)' : 'var(--muted)' }}>
+                  <input type="checkbox" checked={!!f.visible_to_customer}
+                    onChange={async (e) => {
+                      await getSupabase().from('feedback').update({ visible_to_customer: e.target.checked }).eq('id', f.id);
+                      setFeedback(p => p.map(x => x.id === f.id ? {...x, visible_to_customer: e.target.checked} : x));
+                    }} style={{ marginRight: 2 }} />
+                  {f.visible_to_customer ? '👁️ Shown' : 'Show on menu page'}
+                </label>
+              </div>
             </div>
-            {/* Customer name + phone from joined orders table */}
-            {f.orders && (
-              <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: 4 }}>
-                👤 {f.orders.customer_name} &nbsp;·&nbsp; 📞 {f.orders.customer_phone}
-              </div>
-            )}
+            {f.is_manual && f.manual_note && <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: 4 }}>{f.manual_note}</div>}
+            {!f.is_manual && f.orders && <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: 4 }}>👤 {f.orders.customer_name}</div>}
             {f.tags?.length > 0 && <div style={{ fontSize: '0.78rem', color: 'var(--primary)', marginBottom: 4 }}>{f.tags.join(' · ')}</div>}
             {f.comment && <div style={{ fontSize: '0.85rem', color: 'var(--text)', fontStyle: 'italic' }}>&ldquo;{f.comment}&rdquo;</div>}
           </div>

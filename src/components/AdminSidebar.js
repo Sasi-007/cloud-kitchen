@@ -19,6 +19,7 @@ export default function AdminSidebar() {
   const NAV = [
     { href: '/admin/orders',    icon: '📋', label: 'Orders',    locked: false },
     { href: '/admin/menu',      icon: '🍽️', label: 'Menu',      locked: false },
+    { href: '/admin/customers', icon: '👥', label: 'Customers', locked: false },
     { href: '/admin/branding',  icon: '🎨', label: 'Branding',  locked: plan === 'starter' },
     { href: '/admin/analytics', icon: '📊', label: 'Analytics', locked: plan === 'starter' },
     { href: '/admin/support',   icon: '🎧', label: 'Support',   locked: false },
