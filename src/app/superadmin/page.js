@@ -99,9 +99,15 @@ export default function SuperAdminPage() {
   }
 
   async function saveEdit(id) {
-    await getSupabase().from('kitchens').update(editForm).eq('id', id);
+    const { error } = await getSupabase().from('kitchens').update(editForm).eq('id', id);
+    if (error) {
+      setMessage('❌ Save failed: ' + error.message );
+      return ;
+    }    
     setEditId(null);
+    setMessage('✅ Kitchen updated successfully');
     loadKitchens();
+    setTimeout(() => setMessage(''), 4000);
   }
 
   async function deleteKitchen(id, name) {
