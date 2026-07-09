@@ -22,3 +22,6 @@ create policy "Anyone can raise dispute"   on disputes for insert with check (tr
 create policy "Anyone can read own dispute" on disputes for select using (true);
 create policy "Admin manages own disputes"  on disputes for update
   using (exists (select 1 from profiles where id = auth.uid() and kitchen_id = disputes.kitchen_id));
+
+alter table orders drop constraint if exists orders_status_check;
+alter table orders add constraint orders_status_check check (status in ('new','progress','out','delivered','cancelled'));

@@ -24,6 +24,9 @@ export default function AdminAnalyticsPage() {
   const [orders,    setOrders]   = useState([]);
   const [feedback,  setFeedback] = useState([]);
   const [loading,   setLoading]  = useState(true);
+  const [showManual, setShowManual] = useState(false);
+  const [mForm, setMForm]   = useState({ name: '', rating: 5, comment: '' });
+  const [mSaving, setMSaving] = useState(false);
 
   const plan = profile?.kitchens?.plan || 'starter';
   if (profile && plan === 'starter') return <UpgradeWall feature="Analytics" />;
@@ -43,6 +46,26 @@ export default function AdminAnalyticsPage() {
     }
     load();
   }, [profile]);
+
+  async function saveManual() {
+    if (!mForm.name || !mForm.comment) { alert('Name and comment required'); return; }
+    setMSaving(true);
+    await getSupabase().from('feedback').insert({
+      kitchen_id: profile.kitchen_id,
+      rating:     mForm.rating,
+      comment:    mForm.comment,
+      tags:       [],
+      is_manual:  true,
+      manual_note: `From: ${mForm.name} (phone call)`,
+    });
+    setMForm({ name: '', rating: 5, comment: '' });
+    setShowManual(false);
+    setMSaving(false);
+    // reload
+    const { data: f } = await getSupabase().from('feedback').select('*, orders(customer_name, customer_phone)').eq('kitchen_id', profile.kitchen_id).order('created_at', { ascending: false });
+    setFeedback(f || []);
+  }
+
 
   const today          = new Date().toDateString();
   const todayOrders    = orders.filter((o) => new Date(o.created_at).toDateString() === today);
@@ -144,54 +167,29 @@ export default function AdminAnalyticsPage() {
         </div>
 
         {/* Add manual feedback (phone call feedback) */}
-        {(() => {
-          const [showManual, setShowManual] = React.useState(false);
-          const [mForm, setMForm]   = React.useState({ name: '', rating: 5, comment: '' });
-          const [mSaving, setMSaving] = React.useState(false);
-          async function saveManual() {
-            if (!mForm.name || !mForm.comment) { alert('Name and comment required'); return; }
-            setMSaving(true);
-            await getSupabase().from('feedback').insert({
-              kitchen_id: profile.kitchen_id,
-              rating:     mForm.rating,
-              comment:    mForm.comment,
-              tags:       [],
-              is_manual:  true,
-              manual_note: `From: ${mForm.name} (phone call)`,
-            });
-            setMForm({ name: '', rating: 5, comment: '' });
-            setShowManual(false);
-            setMSaving(false);
-            // reload
-            const { data: f } = await getSupabase().from('feedback').select('*, orders(customer_name, customer_phone)').eq('kitchen_id', profile.kitchen_id).order('created_at', { ascending: false });
-            setFeedback(f || []);
-          }
-          return (
-            <div style={{ marginBottom: 16 }}>
-              <button onClick={() => setShowManual(!showManual)} style={{ background: '#eff6ff', color: '#1e40af', border: 'none', borderRadius: 8, padding: '7px 14px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
-                {showManual ? '✕ Cancel' : '📞 Add Phone Call Feedback'}
-              </button>
-              {showManual && (
-                <div style={{ marginTop: 12, background: '#f8faff', borderRadius: 12, padding: '14px 16px', border: '1px solid #bfdbfe' }}>
-                  <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-                    <div className="form-group" style={{ flex: 1, margin: 0, minWidth: 120 }}><label>CUSTOMER NAME</label><input value={mForm.name} onChange={(e) => setMForm(p => ({...p, name: e.target.value}))} placeholder="Ravi Kumar" /></div>
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label>RATING</label>
-                      <select value={mForm.rating} onChange={(e) => setMForm(p => ({...p, rating: Number(e.target.value)}))}
-                        style={{ padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '1rem' }}>
-                        {[5,4,3,2,1].map(n => <option key={n} value={n}>{'⭐'.repeat(n)} {n}/5</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="form-group" style={{ margin: 0, marginBottom: 10 }}><label>COMMENT</label><textarea value={mForm.comment} onChange={(e) => setMForm(p => ({...p, comment: e.target.value}))} rows={2} placeholder="What did the customer say on the call?" /></div>
-                  <button onClick={saveManual} disabled={mSaving} style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
-                    {mSaving ? 'Saving…' : '💾 Save Feedback'}
-                  </button>
+        <div style={{ marginBottom: 16 }}>
+          <button onClick={() => setShowManual(!showManual)} style={{ background: '#eff6ff', color: '#1e40af', border: 'none', borderRadius: 8, padding: '7px 14px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
+            {showManual ? '✕ Cancel' : '📞 Add Phone Call Feedback'}
+          </button>
+          {showManual && (
+            <div style={{ marginTop: 12, background: '#f8faff', borderRadius: 12, padding: '14px 16px', border: '1px solid #bfdbfe' }}>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                <div className="form-group" style={{ flex: 1, margin: 0, minWidth: 120 }}><label>CUSTOMER NAME</label><input value={mForm.name} onChange={(e) => setMForm(p => ({...p, name: e.target.value}))} placeholder="Ravi Kumar" /></div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>RATING</label>
+                  <select value={mForm.rating} onChange={(e) => setMForm(p => ({...p, rating: Number(e.target.value)}))}
+                    style={{ padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '1rem' }}>
+                    {[5,4,3,2,1].map(n => <option key={n} value={n}>{'⭐'.repeat(n)} {n}/5</option>)}
+                  </select>
                 </div>
-              )}
+              </div>
+              <div className="form-group" style={{ margin: 0, marginBottom: 10 }}><label>COMMENT</label><textarea value={mForm.comment} onChange={(e) => setMForm(p => ({...p, comment: e.target.value}))} rows={2} placeholder="What did the customer say on the call?" /></div>
+              <button onClick={saveManual} disabled={mSaving} style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
+                {mSaving ? 'Saving…' : '💾 Save Feedback'}
+              </button>
             </div>
-          );
-        })()}
+          )}
+        </div>
 
         {!feedback.length && <p style={{ color: 'var(--muted)', fontSize: '0.88rem' }}>No feedback yet.</p>}
 

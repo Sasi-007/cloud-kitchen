@@ -100,8 +100,8 @@ export default function OrderTrackingPage({ params }) {
   if (loading) return <div className="page" style={{ textAlign: 'center', paddingTop: 80, color: 'var(--muted)' }}>Loading order…</div>;
   if (!order)  return <div className="page empty-state"><div className="ico">🔍</div><p>Order not found</p></div>;
 
-  // ── CANCELLED VIEW ──────────────────────────────────
-  if (order.is_deleted) {
+  // ── CANCELLED VIEW by admin on customer request ──────────────────────────────────
+  if (order.is_deleted || order.status === 'cancelled') {
     return (
       <div className="page">
         <div className="success-wrap">
@@ -112,11 +112,7 @@ export default function OrderTrackingPage({ params }) {
               #{order.id}
             </div>
             <p style={{ color: 'var(--muted)', margin: '12px 0', fontSize: '0.9rem' }}>
-              Cancelled by: <b>{order.deleted_by === 'customer' ? 'You' : 'Kitchen Admin'}</b>
-              {order.deleted_at && ` · ${new Date(order.deleted_at).toLocaleString('en-IN')}`}
-            </p>
-            <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginBottom: 20 }}>
-              If this was a mistake, please contact the kitchen directly.
+              This order has been cancelled. If you need help, contact the kitchen directly.
             </p>
             <Link href={`/${slug}`} className="btn-primary">Order Again</Link>
           </div>

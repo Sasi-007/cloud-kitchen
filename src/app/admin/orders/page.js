@@ -5,8 +5,8 @@ import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import CountdownTimer from '@/components/CountdownTimer';
 
-const STATUS_LABELS = { new: '🟡 New', progress: '🔵 In Progress', delivered: '✅ Delivered' };
-const STATUS_BADGE  = { new: 'badge-new', progress: 'badge-progress', delivered: 'badge-delivered' };
+const STATUS_LABELS = { new: '🟡 New', progress: '🔵 In Progress', out: '🚚 Out for Delivery', delivered: '✅ Delivered', cancelled: '❌ Cancelled' };
+const STATUS_BADGE  = { new: 'badge-new', progress: 'badge-progress', out: 'badge-progress', delivered: 'badge-delivered', cancelled: 'badge-new' };
 const PAY_STATUS    = {
   pending:   { label: '💳 Pending',    bg: '#fef9c3', color: '#854d0e' },
   partial:   { label: '💰 Partial',    bg: '#fff7ed', color: '#c2410c' },
@@ -123,10 +123,9 @@ export default function AdminOrdersPage() {
 
   function openEditOrder(order) {
     const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
-    // Build editCart from existing items
     const cart = {};
     items.forEach((item, i) => {
-      cart[`existing_${i}`] = { name: item.name, price: item.price, emoji: item.emoji || '🍽️', qty: item.qty };
+      cart[`existing_${i}`] = { name: item.name, price: Number(item.price) || 0, emoji: item.emoji || '🍽️', qty: Number(item.qty) || 1, };
     });
     setEditCart(cart);
     setEditingOrder(order);
@@ -208,9 +207,10 @@ export default function AdminOrdersPage() {
 
   // Filter by tab first, then by search query
   const tabFiltered =
-    filter === 'cancelled' ? cancelledOrders :
-    filter === 'unpaid'    ? activeOrders.filter((o) => o.payment_status !== 'confirmed') :
-    filter === 'all'       ? activeOrders :
+    filter === 'hidden' ? cancelledOrders :
+    filter === 'cancelled' ? activeOrders.filter((o) => o.status === 'cancelled') :
+    filter === 'unpaid'    ? activeOrders.filter((o) => o.payment_status !== 'confirmed' && o.status !== 'cancelled') :
+    filter === 'all'       ? activeOrders.filter((o) => o.status !== 'cancelled') :
     activeOrders.filter((o) => o.status === filter);
 
   const filtered = sortByDelivery(
@@ -306,7 +306,7 @@ export default function AdminOrdersPage() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
                 {menuItems.map((item) => {
                   const inCart = Object.values(editCart).find(c => c.name === item.name);
-                  const qty    = inCart?.qty || 0;
+                  const qty    = Number(inCart?.qty) || 0;
                   const cartKey = Object.entries(editCart).find(([,c]) => c.name === item.name)?.[0] || `m_${item.id}`;
                   return (
                     <button key={item.id} onClick={() => setEditCart(p => ({ ...p, [cartKey]: { name: item.name, price: item.price, emoji: item.emoji, qty: (p[cartKey]?.qty || 0) + 1 } }))}
@@ -672,11 +672,14 @@ export default function AdminOrdersPage() {
 
       {/* FILTER TABS */}
       <div className="cat-tabs" style={{ marginBottom: 20 }}>
-        {['all','new','progress','delivered'].map((f) => (
+        {['all','new','progress','out','delivered'].map((f) => (
           <button key={f} className={`cat-tab ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
             {f === 'all' ? 'All Orders' : STATUS_LABELS[f]}
           </button>
         ))}
+        <button className={`cat-tab ${filter === 'cancelled' ? 'active' : ''}`} onClick={() => setFilter('cancelled')} style={filter !== 'cancelled' && activeOrders.filter(o=>o.status==='cancelled').length > 0 ? { borderColor: 'var(--red)', color: 'var(--red)' } : {}}>
+          ❌ Cancelled {activeOrders.filter(o=>o.status==='cancelled').length > 0 && `(${activeOrders.filter(o=>o.status==='cancelled').length})`}
+        </button>
         <button
           className={`cat-tab ${filter === 'unpaid' ? 'active' : ''}`}
           onClick={() => setFilter('unpaid')}
@@ -684,20 +687,18 @@ export default function AdminOrdersPage() {
         >
           💳 Unpaid {unpaidOrders.length > 0 && `(${unpaidOrders.length})`}
         </button>
-        {/* Cancelled tab — shows soft-deleted orders with undo option */}
         <button
-          className={`cat-tab ${filter === 'cancelled' ? 'active' : ''}`}
-          onClick={() => setFilter('cancelled')}
-          style={filter !== 'cancelled' && cancelledOrders.length > 0 ? { borderColor: 'var(--red)', color: 'var(--red)' } : {}}
-        >
-          ❌ Cancelled {cancelledOrders.length > 0 && `(${cancelledOrders.length})`}
+          className={`cat-tab ${filter === 'hidden' ? 'active' : ''}`}
+          onClick={() => setFilter('hidden')}
+          style={{ opacity: 0.6 }}>
+          🗑️ Hidden {cancelledOrders.length > 0 && `(${cancelledOrders.length})`}
         </button>
       </div>
 
       {!filtered.length && (
         <div className="empty-state">
-          <div className="ico">{filter === 'cancelled' ? '🗑️' : filter === 'unpaid' ? '✅' : '📋'}</div>
-          <p>{filter === 'cancelled' ? 'No cancelled orders' : filter === 'unpaid' ? 'All payments confirmed!' : `No orders${filter !== 'all' ? ` with status "${filter}"` : ' yet'}`}</p>
+          <div className="ico">{filter === 'hidden' ? '🗑️' : filter === 'cancelled' ? '❌' : filter === 'unpaid' ? '✅' : '📋'}</div>
+          <p>{filter === 'hidden' ? 'No hidden orders' : filter === 'cancelled' ? 'No cancelled orders' : filter === 'unpaid' ? 'All payments confirmed!' : `No orders${filter !== 'all' ? ` with status "${filter}"` : ' yet'}`}</p>
         </div>
       )}
 
@@ -772,40 +773,60 @@ export default function AdminOrdersPage() {
               </div>
             </div>
 
-            {/* CANCELLED ORDER — show undo button */}
+            {/* HIDDEN ORDER (is_deleted) — show undo button */}
             {isCancelled && (
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>
-                  🗑️ Deleted {order.deleted_at ? new Date(order.deleted_at).toLocaleString('en-IN') : ''}
+                  🗑️ Hidden {order.deleted_at ? new Date(order.deleted_at).toLocaleString('en-IN') : ''}
                 </div>
-                {/* UNDO DELETE TOGGLE */}
                 <button
                   className="action-btn"
                   style={{ background: '#fef9c3', color: '#854d0e', fontWeight: 700 }}
                   onClick={() => undoDelete(order.id)}
                   disabled={undoing === order.id}
                 >
-                  {undoing === order.id ? '⏳ Restoring…' : '↩️ Undo Delete'}
+                  {undoing === order.id ? '⏳ Restoring…' : '↩️ Unhide'}
                 </button>
               </div>
             )}
 
             {/* ACTIVE ORDER — normal action buttons */}
-            {!isCancelled && (
+            {!isCancelled && order.status !== 'cancelled' && (
               <div className="order-actions">
-                {order.status === 'new'      && <button className="action-btn accept"  onClick={() => updateStatus(order.id, 'progress')}>▶ Mark In Progress</button>}
-                {order.status === 'progress' && <button className="action-btn deliver" onClick={() => updateStatus(order.id, 'delivered')}>✅ Mark Delivered</button>}
+                {order.status === 'new'      && <button className="action-btn accept"  onClick={() => updateStatus(order.id, 'progress')}>▶ In Progress</button>}
+                {order.status === 'progress'      && <button className="action-btn accept"  onClick={() => updateStatus(order.id, 'out')}>🚚 Out for Delivery</button>}
+                {order.status === 'out' && <button className="action-btn deliver" onClick={() => updateStatus(order.id, 'delivered')}>✅ Delivered</button>}
                 <button className="action-btn wa" onClick={() => openWhatsApp(order)}>📱 WhatsApp</button>
-                {/* Edit — only before delivered */}
                 {order.status !== 'delivered' && (
                   <button className="action-btn" style={{ background: '#eff6ff', color: '#1e40af' }} onClick={() => openEditOrder(order)}>✏️ Edit</button>
                 )}
-                <button
-                  className="action-btn"
-                  style={{ background: '#fef2f2', color: '#991b1b', marginLeft: 'auto' }}
-                  onClick={() => softDelete(order.id)}
-                >
-                  🗑️ Hide
+                {/* Cancel - customer requested, keeps order visible with cancelled status */}
+                {order.status !== 'delivered' && (
+                  <button
+                    className="action-btn"
+                    style={{ background: '#fef2f2', color: '#991b1b' }}
+                    onClick={async ()=> {
+                      if (!confirm(`Cancel order #${order.id} for ${order.customer_name}?`)) return ;
+                      await getSupabase().from('orders').update({ status: 'cancelled' }).eq('id', order.id);
+                    }}
+                  >
+                    ❌ Cancel Order
+                  </button>
+                )}
+                {/* Hide - admin removes test/spam orders from view */}
+                <button className="action-btn" style={{ background: '#f3f4f6', color: '#6b7280', marginLeft: 'auto' }}
+                onClick={() => softDelete(order.id)}>
+                  🗑️
+                </button>
+              </div>
+            )}
+
+            {/* CANCELLED status order */}
+            {isCancelled && order.status === 'cancelled' && (
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style = {{ fontSize: '0.82rem', color: 'var(--red)', fontWeight: 600 }}>❌ Cancelled by customer request</span>
+                <button className="action-btn" style={{ background: '#dcfce7', color: '#166534', fontSize: '0.78rem' }} onClick={ async () => { await getSupabase().from('orders').update({ status: 'new' }).eq('id', order.id); }}>
+                  ↩️ Restore to New
                 </button>
               </div>
             )}

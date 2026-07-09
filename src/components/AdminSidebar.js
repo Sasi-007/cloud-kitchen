@@ -12,9 +12,10 @@ const PLAN_BADGE = {
 
 export default function AdminSidebar() {
   const pathname = usePathname();
-  const { profile, logout } = useAuth();
+  const { profile, user, logout } = useAuth();
   const plan  = profile?.kitchens?.plan || 'starter';
   const badge = PLAN_BADGE[plan] || PLAN_BADGE.starter;
+  const kitchenName  = profile?.kitchens?.name || profile?.name || 'Kitchen';
 
   const NAV = [
     { href: '/admin/orders',    icon: '📋', label: 'Orders',    locked: false },
@@ -30,7 +31,10 @@ export default function AdminSidebar() {
       <div className="admin-sidebar-logo">
         <span>👨‍🍳</span>
         <div>
-          <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{profile?.kitchens?.name || 'Kitchen'}</div>
+          <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{kitchenName}</div>
+          <div style={{ fontSize: '0.7rem', marginTop: 2, color: 'rgba(255,255,255,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}>
+            {user?.email}
+          </div>
           <div style={{ fontSize: '0.7rem', marginTop: 3, display: 'inline-block', background: badge.color + '33', color: badge.color, borderRadius: 6, padding: '1px 7px', fontWeight: 700 }}>
             {badge.label}
           </div>
@@ -82,6 +86,9 @@ export default function AdminSidebar() {
       <div className="admin-sidebar-footer">
         <Link href={`/${profile?.kitchens?.slug || ''}`} className="admin-sidebar-link" style={{ fontSize: '0.82rem' }}>
           👁️ View Store
+        </Link>
+        <Link href="/admin/password" className="admin-sidebar-link" style={{ fontSize: '0.78rem' }}>
+          🔐 Change Password
         </Link>
         {plan === 'starter' && (
           <Link href="/admin/subscription" className="admin-sidebar-link" style={{ fontSize: '0.78rem', background: 'rgba(255,107,53,0.15)', color: '#ff6b35' }}>

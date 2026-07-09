@@ -2,9 +2,11 @@
 import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 export default function SuperAdminLayout({ children }) {
   const router = useRouter();
+  const { user } = useAuth();
   async function logout() {
     await getSupabase().auth.signOut();
     router.push('/login');
@@ -16,6 +18,7 @@ export default function SuperAdminLayout({ children }) {
           <span className="admin-nav-logo">⚡ Super Admin</span>
         </Link>
         <div className="admin-nav-links">
+          {user?.email && <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', padding: '6px 4px' }}>{user.email}</span>}
           <Link href="/superadmin" className="admin-nav-back">🏠 Home</Link>
           <Link href="/superadmin/leads" className="admin-nav-back">📥 Leads</Link>
           <Link href="/superadmin/tickets" className="admin-nav-back">🎧 Tickets</Link>
