@@ -101,7 +101,11 @@ export default function MyOrdersPage({ params }) {
                   <span style={{ fontSize: '1.1rem' }}>{STATUS_ICON[order.status] || '📋'}</span>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: '0.9rem', color: STATUS_COLOR[order.status] }}>
-                      {STATUS_LABEL[order.status] || order.status}
+                      {/* {STATUS_LABEL[order.status] || order.status} */}
+                      {(STATUS_LABEL[order.status] || order.status)
+                      .charAt(0)
+                      .toUpperCase() +
+                      (STATUS_LABEL[order.status] || order.status).slice(1)}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
                       {new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
