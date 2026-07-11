@@ -81,6 +81,41 @@ export default function AdminSidebar() {
         </div>
       </div>
 
+       <nav className="admin-sidebar-nav">
+        {NAV.map((item) =>
+          item.locked ? (
+            <div key={item.href} className="sidebar-locked-wrap"
+              onMouseEnter={(e) => {
+                const tip = e.currentTarget.querySelector('.sidebar-tooltip');
+                if (!tip) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                tip.style.left  = (rect.right + 10) + 'px';
+                tip.style.top   = rect.top + 'px';
+              }}
+            >
+              <span
+                className="admin-sidebar-link sidebar-locked"
+              >
+                <span>{item.icon}</span> {item.label}
+                <span style={{ fontSize: '0.62rem', marginLeft: 'auto' }}>🔒</span>
+              </span>
+              <div className="sidebar-tooltip">
+                <div style={{ fontWeight: 700, marginBottom: 3 }}>✨ {item.label} — Growth Feature</div>
+                <div style={{ opacity: 0.85, fontSize: '0.75rem' }}>Upgrade your plan to unlock this and more premium features.</div>
+              </div>
+            </div>
+          ) : (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`admin-sidebar-link ${pathname.startsWith(item.href) ? 'active' : ''}`}
+            >
+              <span>{item.icon}</span> {item.label}
+            </Link>
+          )
+        )}
+      </nav>
+
       <div className="admin-sidebar-footer">
         <Link href={`/${profile?.kitchens?.slug || ''}`} className="admin-sidebar-link" style={{ fontSize: '0.82rem' }}>
           👁️ View Store

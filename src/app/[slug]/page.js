@@ -30,18 +30,15 @@ export default function KitchenMenuPage({ params }) {
         .order('category').order('sort_order');
       setMenuItems(items || []);
 
-      // Load approved reviews — respects admin's max_reviews_shown setting
+      // Load approved reviews 
       const limit = k.max_reviews_shown || 6;
-      const { data: rev } = await supabase.from('feedback')
+      const { data: allVisible } = await supabase.from('feedback')
         .select('rating,comment,tags,is_manual,manual_note')
         .eq('kitchen_id', k.id).eq('visible_to_customer', true)
-        .order('created_at', { ascending: false }).limit(limit);
-      setReviews(rev || []);
-      // All ratings for aggregate score (independent of visibility)
-      const { data: allRev } = await supabase.from('feedback')
-        .select('rating').eq('kitchen_id', k.id);
-      setAllRatings((allRev || []).map(r => r.rating));
-
+        .order('created_at', { ascending: false });
+      const allVisibleList = allVisible || [];
+      setAllRatings(allVisibleList.map(r=>r.rating));
+      setReviews(allVisibleList.slice(0,limit));
       try {
         const saved = JSON.parse(localStorage.getItem(`ck_cart_${slug}`) || '{}');
         setCart(saved);
@@ -205,7 +202,7 @@ export default function KitchenMenuPage({ params }) {
       {!filtered.length && <div className="empty-state"><div className="ico">🍽️</div><p>No items in this category yet.</p></div>}
 
       {/* ── REVIEWS SECTION ─────────────────────────────── */}
-      {(reviews.length > 0 || allRatings.length > 0) && (() => {
+      {reviews.length > 0 && (() => {
         const avg       = allRatings.length ? (allRatings.reduce((s, r) => s + r, 0) / allRatings.length) : 0;
         const rounded   = Math.round(avg * 10) / 10;
         const breakdown = [5,4,3,2,1].map(n => ({ n, count: allRatings.filter(r => r === n).length }));
