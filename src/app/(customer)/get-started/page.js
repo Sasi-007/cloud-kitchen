@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { PLATFORM_NAME, PLATFORM_EMOJI } from '@/lib/config';
 import { getSupabase } from '@/lib/supabase';
 
+// Note: metadata must be in a server component; this page is client-only.
+// SEO is handled by the root layout + (customer) layout.
+
 export default function GetStartedPage() {
   const [form,      setForm]      = useState({ name: '', kitchen: '', phone: '', email: '', plan: 'growth', message: '' });
   const [submitted, setSubmitted] = useState(false);

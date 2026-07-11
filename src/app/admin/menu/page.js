@@ -127,7 +127,8 @@ export default function AdminMenuPage() {
 
           <div className="form-group">
             <label>ITEM IMAGE</label>
-            <ImageUpload bucket="menu-images" currentUrl={imgUrl} onUpload={setImgUrl} label="Upload Item Photo" />
+            <ImageUpload bucket="menu-images" currentUrl={imgUrl} onUpload={setImgUrl} label="Upload Item Photo"
+              stableKey={editing ? `item_${editing.id}` : undefined} />
           </div>
 
           <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>

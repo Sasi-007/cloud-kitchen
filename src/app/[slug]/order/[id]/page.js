@@ -5,46 +5,88 @@ import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 import CountdownTimer from '@/components/CountdownTimer';
 
-function DisputeForm({ orderId, kitchenId, customerName, customerPhone }) {
-  const [type,    setType]    = useState('payment');
-  const [desc,    setDesc]    = useState('');
-  const [done,    setDone]    = useState(false);
-  const [saving,  setSaving]  = useState(false);
+/* ── Dispute section ────────────────────────────────────────── */
+function DisputeSection({ orderId, kitchenId, customerName, customerPhone }) {
+  const [dispute,  setDispute]  = useState(null);  // existing dispute if any
+  const [loadingD, setLoadingD] = useState(true);
+  const [type,     setType]     = useState('payment');
+  const [desc,     setDesc]     = useState('');
+  const [saving,   setSaving]   = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
-  async function submit(e) {
-    e.preventDefault();
-    if (!desc.trim()) return;
-    setSaving(true);
-    await getSupabase().from('disputes').insert({
-      order_id: orderId, kitchen_id: kitchenId,
-      customer_name: customerName, customer_phone: customerPhone,
-      type, description: desc,
-    });
-    setDone(true);
-    setSaving(false);
+  useEffect(() => {
+    getSupabase().from('disputes').select('*').eq('order_id', orderId).maybeSingle()
+      .then(({ data }) => { setDispute(data); setLoadingD(false); });
+  }, [orderId]);
+
+  if (loadingD) return null;
+
+  const STATUS_LABEL = { open: '🟡 Under Review', reviewing: '🔵 Being Reviewed', resolved: '✅ Resolved', closed: '⚫ Closed' };
+  const STATUS_COLOR = { open: '#854d0e', reviewing: '#1e40af', resolved: '#166534', closed: '#6b7280' };
+  const STATUS_BG    = { open: '#fef9c3', reviewing: '#dbeafe', resolved: '#dcfce7', closed: '#f3f4f6' };
+
+  /* Already raised a dispute for this order */
+  if (dispute) {
+    return (
+      <div style={{ marginTop: 20, background: '#f9fafb', borderRadius: 14, padding: '16px 18px', border: '1px solid #e5e7eb' }}>
+        <div style={{ fontWeight: 700, marginBottom: 8, fontSize: '0.9rem' }}>⚠️ Your Dispute</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{dispute.type} issue</span>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '2px 10px', borderRadius: 20, background: STATUS_BG[dispute.status], color: STATUS_COLOR[dispute.status] }}>
+            {STATUS_LABEL[dispute.status] || dispute.status}
+          </span>
+        </div>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text)', lineHeight: 1.6, marginBottom: 8 }}>{dispute.description}</p>
+        {dispute.status !== 'resolved' && dispute.status !== 'closed' && (
+          <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
+            The kitchen will contact you via WhatsApp to resolve this.
+          </div>
+        )}
+        {(dispute.status === 'resolved' || dispute.status === 'closed') && (
+          <div style={{ fontSize: '0.82rem', color: '#166534', fontWeight: 600 }}>✅ This dispute has been resolved.</div>
+        )}
+      </div>
+    );
   }
 
-  if (done) return <p style={{ marginTop: 10, fontSize: '0.82rem', color: 'var(--green)', fontWeight: 600 }}>✅ Dispute raised. The kitchen team will review and contact you.</p>;
-
+  /* No dispute yet */
   return (
-    <form onSubmit={submit} style={{ marginTop: 10, background: '#fff8f5', borderRadius: 12, padding: '14px 16px', border: '1px solid #ffcbb0' }}>
-      <div style={{ marginBottom: 10 }}>
-        <select value={type} onChange={(e) => setType(e.target.value)}
-          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.95rem', background: '#fff', marginBottom: 8 }}>
-          <option value="payment">💳 Payment Issue</option>
-          <option value="delivery">🚚 Delivery Issue</option>
-          <option value="quality">🍽️ Food Quality Issue</option>
-          <option value="other">⚠️ Other</option>
-        </select>
-        <textarea value={desc} onChange={(e) => setDesc(e.target.value)} required rows={3}
-          placeholder="Describe the issue clearly…"
-          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.95rem', resize: 'none' }} />
-      </div>
-      <button type="submit" disabled={saving}
-        style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem' }}>
-        {saving ? 'Submitting…' : '📩 Submit Dispute'}
-      </button>
-    </form>
+    <div style={{ marginTop: 20 }}>
+      {!showForm ? (
+        <button onClick={() => setShowForm(true)}
+          style={{ background: 'none', border: '1.5px solid #e5e7eb', borderRadius: 10, padding: '9px 16px', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--muted)', fontWeight: 600, width: '100%' }}>
+          ⚠️ Report an issue with this order
+        </button>
+      ) : (
+        <div style={{ background: '#f9fafb', borderRadius: 14, padding: '16px 18px', border: '1px solid #e5e7eb' }}>
+          <div style={{ fontWeight: 700, marginBottom: 10, fontSize: '0.9rem' }}>⚠️ Report an Issue</div>
+          <select value={type} onChange={(e) => setType(e.target.value)}
+            style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.95rem', background: '#fff', marginBottom: 8 }}>
+            <option value="payment">💳 Payment Issue</option>
+            <option value="delivery">🚚 Delivery Issue</option>
+            <option value="quality">🍽️ Food Quality Issue</option>
+            <option value="other">⚠️ Other</option>
+          </select>
+          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder="Describe the issue…"
+            style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.95rem', resize: 'none', marginBottom: 10 }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setShowForm(false)}
+              style={{ flex: 1, background: '#f3f4f6', border: 'none', borderRadius: 10, padding: '10px', cursor: 'pointer', fontWeight: 700 }}>Cancel</button>
+            <button disabled={saving || !desc.trim()} onClick={async () => {
+              setSaving(true);
+              const { data } = await getSupabase().from('disputes').insert({
+                order_id: orderId, kitchen_id: kitchenId,
+                customer_name: customerName, customer_phone: customerPhone,
+                type, description: desc,
+              }).select().single();
+              setDispute(data); setSaving(false); setShowForm(false);
+            }} style={{ flex: 2, background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px', fontWeight: 700, cursor: 'pointer', opacity: (!desc.trim() || saving) ? 0.6 : 1 }}>
+              {saving ? 'Submitting…' : '📩 Submit'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -58,49 +100,28 @@ const STATUS_INDEX = { new: 0, progress: 1, out: 2, delivered: 3 };
 
 export default function OrderTrackingPage({ params }) {
   const { slug, id } = params;
-  const [order,      setOrder]      = useState(null);
-  const [loading,    setLoading]    = useState(true);
+  const [order,   setOrder]   = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const supabase = getSupabase();
-
     async function loadOrder() {
       const { data } = await supabase.from('orders').select('*').eq('id', id).single();
       if (data) setOrder(data);
       setLoading(false);
     }
     loadOrder();
-
-    // Real-time updates (status changes + soft-delete)
-    const channel = supabase
-      .channel(`order-${id}`)
+    const channel = supabase.channel(`order-${id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
         (payload) => setOrder(payload.new))
       .subscribe();
-
     return () => supabase.removeChannel(channel);
   }, [id]);
-
-  async function handleCancel() {
-    if (!confirm('Are you sure you want to cancel this order?')) return;
-    setCancelling(true);
-    setCancelErr('');
-    try {
-      const res  = await fetch(`/api/orders/${id}/cancel`, { method: 'POST' });
-      const body = await res.json();
-      if (!res.ok) { setCancelErr(body.error || 'Failed to cancel'); }
-      // Real-time will update order state automatically
-    } catch {
-      setCancelErr('Network error. Please try again.');
-    } finally {
-      setCancelling(false);
-    }
-  }
 
   if (loading) return <div className="page" style={{ textAlign: 'center', paddingTop: 80, color: 'var(--muted)' }}>Loading order…</div>;
   if (!order)  return <div className="page empty-state"><div className="ico">🔍</div><p>Order not found</p></div>;
 
-  // ── CANCELLED VIEW by admin on customer request ──────────────────────────────────
+  // ── CANCELLED VIEW ───────────────────────────────────────────
   if (order.is_deleted || order.status === 'cancelled') {
     return (
       <div className="page">
@@ -108,12 +129,15 @@ export default function OrderTrackingPage({ params }) {
           <div className="success-card">
             <div style={{ fontSize: '3.5rem', marginBottom: 14 }}>❌</div>
             <h2 style={{ color: 'var(--red)' }}>Order Cancelled</h2>
-            <div className="order-id-box" style={{ background: '#fef2f2', borderColor: '#fca5a5', color: 'var(--red)' }}>
-              #{order.id}
-            </div>
+            <div className="order-id-box" style={{ background: '#fef2f2', borderColor: '#fca5a5', color: 'var(--red)' }}>#{order.id}</div>
             <p style={{ color: 'var(--muted)', margin: '12px 0', fontSize: '0.9rem' }}>
-              This order has been cancelled. If you need help, contact the kitchen directly.
+              This order has been cancelled. Contact the kitchen if you need help.
             </p>
+            {order.advance_paid && order.advance_amount > 0 && (
+              <div style={{ background: order.refund_status === 'completed' ? '#dcfce7' : '#fef9c3', border: `1px solid ${order.refund_status === 'completed' ? '#86efac' : '#fde68a'}`, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: '0.85rem', color: order.refund_status === 'completed' ? '#166534' : '#854d0e' }}>
+                {order.refund_status === 'completed' ? `✅ Refund of ₹${order.advance_amount} processed. Please check your account.` : `💰 Advance ₹${order.advance_amount} refund is pending.`}
+              </div>
+            )}
             <Link href={`/${slug}`} className="btn-primary">Order Again</Link>
           </div>
         </div>
@@ -121,16 +145,18 @@ export default function OrderTrackingPage({ params }) {
     );
   }
 
-  // ── NORMAL TRACKING VIEW ────────────────────────────
-  const currentIndex = STATUS_INDEX[order.status] ?? 0;
+  // ── NORMAL TRACKING VIEW ─────────────────────────────────────
+  const currentIndex  = STATUS_INDEX[order.status] ?? 0;
+  const isDelivered   = order.status === 'delivered';
+  const items         = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
 
   return (
     <div className="page">
       <div className="success-wrap">
         <div className="success-card">
-          <div style={{ fontSize: '4rem', marginBottom: 14 }}>🎉</div>
-          <h2>Order Confirmed!</h2>
-          <p>You&apos;ll receive a WhatsApp update when your order is ready.</p>
+          <div style={{ fontSize: '3rem', marginBottom: 10 }}>{isDelivered ? '🎊' : '🎉'}</div>
+          <h2>{isDelivered ? 'Order Delivered!' : 'Order Confirmed!'}</h2>
+          {/* Issue 3: Removed "You'll receive WhatsApp update" */}
           <div className="order-id-box">#{order.id}</div>
 
           <div style={{ textAlign: 'left', fontSize: '0.85rem', color: 'var(--muted)', margin: '10px 0' }}>
@@ -140,15 +166,15 @@ export default function OrderTrackingPage({ params }) {
 
           {(order.delivery_date || order.delivery_time) && (
             <div style={{ background: '#ede9fe', borderRadius: 10, padding: '10px 14px', marginBottom: 10, fontSize: '0.85rem', fontWeight: 700, color: '#7c3aed', textAlign: 'left' }}>
-              📅 Scheduled delivery: {order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : ''} {order.delivery_time || ''}
+              📅 Scheduled: {order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : ''} {order.delivery_time || ''}
             </div>
           )}
 
-          {/* Live countdown for customer */}
+          {/* Countdown timer */}
           {(order.status === 'progress' || order.status === 'out') && order.timer_started_at && order.estimated_minutes && (
             <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 12, padding: '14px 18px', marginBottom: 12, textAlign: 'center' }}>
               <div style={{ fontSize: '0.82rem', color: '#166534', marginBottom: 6, fontWeight: 600 }}>
-                {order.status === 'progress' ? '👨‍🍳 Estimated prep time remaining' : '🚚 Estimated delivery time remaining'}
+                {order.status === 'progress' ? '👨‍🍳 Prep time remaining' : '🚚 Delivery time remaining'}
               </div>
               <div style={{ fontSize: '2rem', fontWeight: 900 }}>
                 <CountdownTimer startedAt={order.timer_started_at} minutes={order.estimated_minutes} />
@@ -156,29 +182,27 @@ export default function OrderTrackingPage({ params }) {
             </div>
           )}
 
-          {/* Order items — customer can see exactly what was ordered (updates if admin edits) */}
-          {(() => {
-            const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
-            return items.length > 0 ? (
-              <div style={{ background: '#f9f9f9', borderRadius: 12, padding: '12px 14px', marginBottom: 10, textAlign: 'left' }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--muted)', marginBottom: 8, letterSpacing: 0.5 }}>YOUR ORDER</div>
-                {items.map((item, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', marginBottom: 4 }}>
-                    <span>{item.emoji || '🍽️'} {item.name} ×{item.qty}</span>
-                    <span style={{ color: 'var(--muted)' }}>₹{item.price * item.qty}</span>
-                  </div>
-                ))}
-                <div style={{ borderTop: '1px solid #eee', marginTop: 8, paddingTop: 6, fontWeight: 700, fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Total</span><span style={{ color: 'var(--primary)' }}>₹{order.total}</span>
+          {/* Order items */}
+          {items.length > 0 && (
+            <div style={{ background: '#f9f9f9', borderRadius: 12, padding: '12px 14px', marginBottom: 12, textAlign: 'left' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--muted)', marginBottom: 8, letterSpacing: 0.5 }}>YOUR ORDER</div>
+              {items.map((item, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', marginBottom: 4 }}>
+                  <span>{item.emoji || '🍽️'} {item.name} ×{item.qty}</span>
+                  <span style={{ color: 'var(--muted)' }}>₹{item.price * item.qty}</span>
                 </div>
+              ))}
+              <div style={{ borderTop: '1px solid #eee', marginTop: 8, paddingTop: 6, fontWeight: 700, fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Total</span><span style={{ color: 'var(--primary)' }}>₹{order.total}</span>
               </div>
-            ) : null;
-          })()}
+            </div>
+          )}
 
+          {/* Issue 5: Tracking steps — all ticked when delivered */}
           <div className="tracking-steps">
             {STEPS.map((step, i) => {
-              const done   = i < currentIndex;
-              const active = i === currentIndex;
+              const done   = isDelivered ? true : i < currentIndex;
+              const active = !isDelivered && i === currentIndex;
               return (
                 <div key={step.key} className={`step ${done ? 'done' : active ? 'active-step' : ''}`}>
                   <div className="step-dot">{done ? '✓' : i + 1}</div>
@@ -188,7 +212,8 @@ export default function OrderTrackingPage({ params }) {
             })}
           </div>
 
-          {order.status === 'delivered' && (
+          {/* Issue 6: Feedback — link only when delivered */}
+          {isDelivered && (
             <div className="delivered-prompt">
               <p>✅ Your food has been delivered!</p>
               <small>How was your experience?</small>
@@ -200,17 +225,14 @@ export default function OrderTrackingPage({ params }) {
 
           <Link href={`/${slug}`} className="btn-outline" style={{ marginTop: 14 }}>Order Again</Link>
 
-          {/* Contact kitchen for any changes */}
-          <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 12, textAlign: 'center' }}>
-            Need to change or cancel? Contact the kitchen directly.
-          </p>
-
-          {/* Raise a dispute */}
-          {order.status !== 'new' && (
-            <details style={{ marginTop: 14 }}>
-              <summary style={{ fontSize: '0.8rem', color: 'var(--muted)', cursor: 'pointer', fontWeight: 600 }}>⚠️ Report an issue with this order</summary>
-              <DisputeForm orderId={order.id} kitchenId={order.kitchen_id} customerName={order.customer_name} customerPhone={order.customer_phone} />
-            </details>
+          {/* Issue 9 & 10: Show dispute — available from progress onwards, hidden for new/cancelled */}
+          {(order.status === 'progress' || order.status === 'out' || isDelivered) && (
+            <DisputeSection
+              orderId={order.id}
+              kitchenId={order.kitchen_id}
+              customerName={order.customer_name}
+              customerPhone={order.customer_phone}
+            />
           )}
         </div>
       </div>

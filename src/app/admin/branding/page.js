@@ -8,18 +8,20 @@ import Link from 'next/link';
 
 export default function AdminBrandingPage() {
   const { profile } = useAuth();
-  const [form,    setForm]    = useState({ name: '', tagline: '', upi_id: '', phone: '', address: '' });
+  const [form,    setForm]    = useState({ name: '', tagline: '', upi_id: '', phone: '', address: '', delivery_fee: 50, free_delivery_above: 1000 });
   const [logoUrl,   setLogoUrl]   = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
+  const [saveErr, setSaveErr] = useState('');
 
   const plan = profile?.kitchens?.plan || 'starter';
 
   useEffect(() => {
     if (!profile?.kitchens) return;
     const k = profile.kitchens;
-    setForm({ name: k.name || '', tagline: k.tagline || '', upi_id: k.upi_id || '', phone: k.phone || '', address: k.address || '' });
+    setForm({ name: k.name || '', tagline: k.tagline || '', upi_id: k.upi_id || '', phone: k.phone || '', address: k.address || '',
+      delivery_fee: k.delivery_fee ?? 50, free_delivery_above: k.free_delivery_above ?? 1000 });
     setLogoUrl(k.logo_url   || '');
     setBannerUrl(k.banner_url || '');
   }, [profile]);
@@ -28,10 +30,34 @@ export default function AdminBrandingPage() {
 
   async function save() {
     if (!profile?.kitchen_id) return;
-    setSaving(true);
-    await getSupabase().from('kitchens').update({ ...form, logo_url: logoUrl, banner_url: bannerUrl }).eq('id', profile.kitchen_id);
+    setSaving(true); setSaveErr('');
+    // Only send columns that definitely exist — exclude delivery columns until migration is run
+    const update = { name: form.name, tagline: form.tagline, upi_id: form.upi_id, phone: form.phone, address: form.address, logo_url: logoUrl, banner_url: bannerUrl };
+    // Try adding delivery columns — if migration not run, they'll be ignored
+    try { update.delivery_fee = Number(form.delivery_fee) || 50; } catch {}
+    try { update.free_delivery_above = Number(form.free_delivery_above) || 1000; } catch {}
+
+    const { error, count } = await getSupabase().from('kitchens')
+      .update(update, { count: 'exact' }).eq('id', profile.kitchen_id);
+    if (error) {
+      // If delivery columns don't exist yet, save without them
+      if (error.message?.includes('delivery_fee') || error.message?.includes('free_delivery_above')) {
+        const { error: e2 } = await getSupabase().from('kitchens').update({
+          name: form.name, tagline: form.tagline, upi_id: form.upi_id,
+          phone: form.phone, address: form.address, logo_url: logoUrl, banner_url: bannerUrl,
+        }).eq('id', profile.kitchen_id);
+        if (e2) { setSaveErr('Save failed: ' + e2.message); setSaving(false); return; }
+        setSaveErr('⚠️ Saved (without delivery settings — run migrations_2026_07_10.sql to enable them)');
+      } else {
+        setSaveErr('Save failed: ' + error.message);
+        setSaving(false); return;
+      }
+    } else if (count === 0) {
+      setSaveErr('Save failed: No permission to update — run this SQL in Supabase:\ncreate policy "Admin updates own kitchen" on kitchens for update using (exists (select 1 from profiles where id = auth.uid() and kitchen_id = kitchens.id));');
+      setSaving(false); return;
+    }
     setSaving(false); setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setTimeout(() => { setSaved(false); setSaveErr(''); }, 4000);
   }
 
   return (
@@ -87,10 +113,16 @@ export default function AdminBrandingPage() {
         {plan !== 'starter' && (
           <>
             <div style={{ fontWeight: 700, marginBottom: 16 }}>Kitchen Logo</div>
-            <ImageUpload bucket="branding" currentUrl={logoUrl} onUpload={setLogoUrl} label="Upload Logo" />
+            <ImageUpload bucket="branding" currentUrl={logoUrl}
+              stableKey={`kitchen_${profile?.kitchen_id}_logo`}
+              onUpload={async (url) => { setLogoUrl(url); await getSupabase().from('kitchens').update({ logo_url: url }).eq('id', profile.kitchen_id); }}
+              label="Upload Logo" />
             <div className="divider" />
             <div style={{ fontWeight: 700, marginBottom: 16 }}>Banner Image</div>
-            <ImageUpload bucket="branding" currentUrl={bannerUrl} onUpload={setBannerUrl} label="Upload Banner" />
+            <ImageUpload bucket="branding" currentUrl={bannerUrl}
+              stableKey={`kitchen_${profile?.kitchen_id}_banner`}
+              onUpload={async (url) => { setBannerUrl(url); await getSupabase().from('kitchens').update({ banner_url: url }).eq('id', profile.kitchen_id); }}
+              label="Upload Banner" />
             <div className="divider" />
           </>
         )}
@@ -112,9 +144,25 @@ export default function AdminBrandingPage() {
           <textarea name="address" value={form.address} onChange={field} rows={2} placeholder="Plot 12, HITEC City, Hyderabad" />
         </div>
 
+        <div className="divider" />
+        <div style={{ fontWeight: 700, marginBottom: 14 }}>🚚 Delivery Settings</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+          <div className="form-group">
+            <label>DELIVERY FEE (₹)</label>
+            <input name="delivery_fee" type="number" min="0" value={form.delivery_fee} onChange={field} placeholder="50" />
+            <small style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>Charged when order is below the free delivery threshold</small>
+          </div>
+          <div className="form-group">
+            <label>FREE DELIVERY ABOVE (₹)</label>
+            <input name="free_delivery_above" type="number" min="0" value={form.free_delivery_above} onChange={field} placeholder="1000" />
+            <small style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>Set 0 to always charge delivery fee</small>
+          </div>
+        </div>
+
         <button className="btn-primary" onClick={save} disabled={saving} style={{ marginTop: 8 }}>
           {saving ? 'Saving…' : saved ? '✅ Saved!' : '💾 Save Changes'}
         </button>
+        {saveErr && <div style={{ marginTop: 10, fontSize: '0.82rem', color: saveErr.startsWith('⚠️') ? '#854d0e' : 'var(--red)', background: saveErr.startsWith('⚠️') ? '#fef9c3' : '#fef2f2', borderRadius: 8, padding: '8px 12px' }}>{saveErr}</div>}
       </div>
     </div>
   );

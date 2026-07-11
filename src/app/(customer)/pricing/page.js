@@ -1,5 +1,11 @@
 import Link from 'next/link';
 
+export const metadata = {
+  title: 'Pricing Plans — SpiceFest Cloud Kitchen Platform',
+  description: 'Simple, transparent pricing for cloud kitchens. Start free on the Starter plan and upgrade as you grow. No hidden fees.',
+  openGraph: { title: 'Pricing — SpiceFest', description: 'Free and paid plans for cloud kitchen ordering.' },
+};
+
 const PLANS = [
   {
     name: 'Starter',

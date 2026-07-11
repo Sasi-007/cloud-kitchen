@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import React from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
@@ -21,12 +20,13 @@ function UpgradeWall({ feature }) {
 
 export default function AdminAnalyticsPage() {
   const { profile } = useAuth();
-  const [orders,    setOrders]   = useState([]);
-  const [feedback,  setFeedback] = useState([]);
-  const [loading,   setLoading]  = useState(true);
-  const [showManual, setShowManual] = useState(false);
-  const [mForm, setMForm]   = useState({ name: '', rating: 5, comment: '' });
-  const [mSaving, setMSaving] = useState(false);
+  const [orders,      setOrders]      = useState([]);
+  const [feedback,    setFeedback]    = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [showManual,  setShowManual]  = useState(false);
+  const [mForm,       setMForm]       = useState({ name: '', rating: 5, comment: '' });
+  const [mSaving,     setMSaving]     = useState(false);
+  const [maxVisible,  setMaxVisible]  = useState(6); // how many to show on customer page
 
   const plan = profile?.kitchens?.plan || 'starter';
   if (profile && plan === 'starter') return <UpgradeWall feature="Analytics" />;
@@ -35,50 +35,38 @@ export default function AdminAnalyticsPage() {
     if (!profile?.kitchen_id) return;
     async function load() {
       const supabase = getSupabase();
-      const [{ data: o }, { data: f }] = await Promise.all([
+      const [{ data: o }, { data: f }, { data: k }] = await Promise.all([
         supabase.from('orders').select('*').eq('kitchen_id', profile.kitchen_id).order('created_at', { ascending: false }),
         // Join feedback with orders to get customer name + phone
         supabase.from('feedback').select('*, orders(customer_name, customer_phone)').eq('kitchen_id', profile.kitchen_id).order('created_at', { ascending: false }),
+        supabase.from('kitchens').select('max_reviews_shown').eq('id', profile.kitchen_id).single(),
       ]);
       setOrders(o || []);
       setFeedback(f || []);
+      if (k?.max_reviews_shown) setMaxVisible(k.max_reviews_shown);
       setLoading(false);
     }
     load();
   }, [profile]);
 
-  async function saveManual() {
-    if (!mForm.name || !mForm.comment) { alert('Name and comment required'); return; }
-    setMSaving(true);
-    await getSupabase().from('feedback').insert({
-      kitchen_id: profile.kitchen_id,
-      rating:     mForm.rating,
-      comment:    mForm.comment,
-      tags:       [],
-      is_manual:  true,
-      manual_note: `From: ${mForm.name} (phone call)`,
-    });
-    setMForm({ name: '', rating: 5, comment: '' });
-    setShowManual(false);
-    setMSaving(false);
-    // reload
-    const { data: f } = await getSupabase().from('feedback').select('*, orders(customer_name, customer_phone)').eq('kitchen_id', profile.kitchen_id).order('created_at', { ascending: false });
-    setFeedback(f || []);
-  }
+  const today           = new Date().toDateString();
+  const activeOrders    = orders.filter((o) => !o.is_deleted);
+  const todayOrders     = activeOrders.filter((o) => new Date(o.created_at).toDateString() === today);
+  const deliveredOrders = activeOrders.filter((o) => o.status === 'delivered');
+  const cancelledOrders = activeOrders.filter((o) => o.status === 'cancelled');
+  const todayRevenue    = todayOrders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.total, 0);
+  const totalRevenue    = deliveredOrders.reduce((s, o) => s + o.total, 0);
+  // Collected = actual cash received (exclude cancelled orders)
+  const confirmedAmt    = activeOrders.filter((o) => o.status !== 'cancelled').reduce((s, o) => s + (o.amount_received || 0), 0);
+  const pendingAmt      = activeOrders.filter((o) => o.payment_status !== 'confirmed' && o.status !== 'cancelled' && !o.is_deleted)
+                                      .reduce((s, o) => s + (o.total - (o.amount_received || 0)), 0);
+  const refundsPending  = cancelledOrders.filter((o) => o.advance_paid && o.advance_amount > 0 && o.refund_status !== 'completed')
+                                         .reduce((s, o) => s + o.advance_amount, 0);
+  const avgRating       = feedback.length ? (feedback.reduce((s, f) => s + f.rating, 0) / feedback.length).toFixed(1) : 'N/A';
 
-
-  const today          = new Date().toDateString();
-  const todayOrders    = orders.filter((o) => new Date(o.created_at).toDateString() === today);
-  const todayRevenue   = todayOrders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.total, 0);
-  const totalRevenue   = orders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.total, 0);
-  const confirmedAmt   = orders.reduce((s, o) => s + (o.amount_received || 0), 0);
-  const pendingAmt     = orders.filter((o) => o.payment_status !== 'confirmed' && !o.is_deleted)
-                               .reduce((s, o) => s + (o.total - (o.amount_received || 0)), 0);
-  const avgRating      = feedback.length ? (feedback.reduce((s, f) => s + f.rating, 0) / feedback.length).toFixed(1) : 'N/A';
-
-  // Popular items
+  // Popular items — only from delivered orders
   const itemCount = {};
-  orders.forEach((o) => {
+  deliveredOrders.forEach((o) => {
     const items = Array.isArray(o.items) ? o.items : JSON.parse(o.items || '[]');
     items.forEach((i) => { itemCount[i.name] = (itemCount[i.name] || 0) + i.qty; });
   });
@@ -105,6 +93,7 @@ export default function AdminAnalyticsPage() {
         <div className="stat-card"><div className="stat-val" style={{ color: 'var(--primary)' }}>{todayOrders.length}</div><div className="stat-lbl">Today&apos;s Orders</div></div>
         <div className="stat-card"><div className="stat-val" style={{ color: '#8b5cf6' }}>₹{confirmedAmt.toLocaleString('en-IN')}</div><div className="stat-lbl">Collected</div></div>
         {pendingAmt > 0 && <div className="stat-card"><div className="stat-val" style={{ color: 'var(--yellow)' }}>₹{pendingAmt.toLocaleString('en-IN')}</div><div className="stat-lbl">Pending Payment</div></div>}
+        {refundsPending > 0 && <div className="stat-card"><div className="stat-val" style={{ color: '#c2410c' }}>₹{refundsPending.toLocaleString('en-IN')}</div><div className="stat-lbl">Refunds Pending</div></div>}
         <div className="stat-card"><div className="stat-val" style={{ color: 'var(--yellow)' }}>⭐ {avgRating}</div><div className="stat-lbl">Avg Rating ({feedback.length} reviews)</div></div>
       </div>
 
@@ -140,33 +129,66 @@ export default function AdminAnalyticsPage() {
       <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)', marginBottom: 28 }}>
         <div style={{ fontWeight: 700, marginBottom: 16 }}>Order Status Breakdown</div>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          {['new','progress','delivered'].map((s) => {
-            const cnt = orders.filter((o) => o.status === s).length;
-            const pct = orders.length ? Math.round((cnt / orders.length) * 100) : 0;
+          {[
+            { s: 'new',       label: '🟡 New',        color: 'var(--yellow)' },
+            { s: 'progress',  label: '🔵 In Progress', color: 'var(--primary)' },
+            { s: 'delivered', label: '✅ Delivered',   color: 'var(--green)' },
+            { s: 'cancelled', label: '❌ Cancelled',   color: 'var(--red)' },
+          ].map(({ s, label, color }) => {
+            const cnt = activeOrders.filter((o) => o.status === s).length;
+            const pct = activeOrders.length ? Math.round((cnt / activeOrders.length) * 100) : 0;
             return (
               <div key={s} style={{ flex: 1, minWidth: 120 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{s === 'new' ? '🟡 New' : s === 'progress' ? '🔵 In Progress' : '✅ Delivered'}</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{label}</span>
                   <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{cnt}</span>
                 </div>
                 <div style={{ height: 8, background: '#f0f0f0', borderRadius: 4 }}>
-                  <div style={{ height: '100%', width: `${pct}%`, background: s === 'new' ? 'var(--yellow)' : s === 'progress' ? 'var(--primary)' : 'var(--green)', borderRadius: 4, transition: 'width 0.5s' }} />
+                  <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 4, transition: 'width 0.5s' }} />
                 </div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 4 }}>{pct}%</div>
               </div>
             );
           })}
         </div>
+        {cancelledOrders.length > 0 && (
+          <div style={{ marginTop: 16, padding: '10px 14px', background: '#fef2f2', borderRadius: 10, fontSize: '0.82rem', color: '#991b1b' }}>
+            ❌ {cancelledOrders.length} cancelled order{cancelledOrders.length > 1 ? 's' : ''} — lost revenue ₹{cancelledOrders.reduce((s,o) => s+o.total,0).toLocaleString('en-IN')}
+            {refundsPending > 0 && <span style={{ marginLeft: 12, fontWeight: 700 }}>· ₹{refundsPending.toLocaleString('en-IN')} refund{refundsPending > 1 ? 's' : ''} pending</span>}
+          </div>
+        )}
       </div>
 
       {/* Recent Feedback */}
       <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
           <div style={{ fontWeight: 700 }}>Customer Feedback</div>
-          <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{feedback.length} total review{feedback.length !== 1 ? 's' : ''}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            {/* Count of currently visible on menu page */}
+            <span style={{ fontSize: '0.78rem', color: feedback.filter(f=>f.visible_to_customer).length > 0 ? 'var(--green)' : 'var(--muted)', fontWeight: 600 }}>
+              👁️ {feedback.filter(f=>f.visible_to_customer).length} shown on menu page
+              {feedback.filter(f=>f.visible_to_customer).length > maxVisible && (
+                <span style={{ color: 'var(--yellow)', marginLeft: 4 }}>(only {maxVisible} displayed)</span>
+              )}
+            </span>
+            {/* Max visible control */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--muted)' }}>
+              Show max
+              <select value={maxVisible} onChange={async (e) => {
+                const val = Number(e.target.value);
+                setMaxVisible(val);
+                await getSupabase().from('kitchens').update({ max_reviews_shown: val }).eq('id', profile.kitchen_id);
+              }}
+                style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: '0.82rem' }}>
+                {[3,5,6,8,10,12].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+              on menu
+            </label>
+            <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{feedback.length} total</div>
+          </div>
         </div>
 
-        {/* Add manual feedback (phone call feedback) */}
+        {/* Add manual feedback — state is at component level, no IIFE */}
         <div style={{ marginBottom: 16 }}>
           <button onClick={() => setShowManual(!showManual)} style={{ background: '#eff6ff', color: '#1e40af', border: 'none', borderRadius: 8, padding: '7px 14px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
             {showManual ? '✕ Cancel' : '📞 Add Phone Call Feedback'}
@@ -184,7 +206,19 @@ export default function AdminAnalyticsPage() {
                 </div>
               </div>
               <div className="form-group" style={{ margin: 0, marginBottom: 10 }}><label>COMMENT</label><textarea value={mForm.comment} onChange={(e) => setMForm(p => ({...p, comment: e.target.value}))} rows={2} placeholder="What did the customer say on the call?" /></div>
-              <button onClick={saveManual} disabled={mSaving} style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
+              <button onClick={async () => {
+                if (!mForm.name || !mForm.comment) { alert('Name and comment required'); return; }
+                setMSaving(true);
+                await getSupabase().from('feedback').insert({
+                  kitchen_id: profile.kitchen_id, rating: mForm.rating, comment: mForm.comment,
+                  tags: [], is_manual: true, manual_note: `From: ${mForm.name} (phone call)`,
+                });
+                const { data: f } = await getSupabase().from('feedback').select('*, orders(customer_name, customer_phone)').eq('kitchen_id', profile.kitchen_id).order('created_at', { ascending: false });
+                setFeedback(f || []);
+                setMForm({ name: '', rating: 5, comment: '' });
+                setShowManual(false);
+                setMSaving(false);
+              }} disabled={mSaving} style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
                 {mSaving ? 'Saving…' : '💾 Save Feedback'}
               </button>
             </div>
@@ -203,14 +237,14 @@ export default function AdminAnalyticsPage() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{new Date(f.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
-                {/* Toggle visibility on customer page */}
                 <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, color: f.visible_to_customer ? 'var(--green)' : 'var(--muted)' }}>
                   <input type="checkbox" checked={!!f.visible_to_customer}
                     onChange={async (e) => {
-                      await getSupabase().from('feedback').update({ visible_to_customer: e.target.checked }).eq('id', f.id);
-                      setFeedback(p => p.map(x => x.id === f.id ? {...x, visible_to_customer: e.target.checked} : x));
-                    }} style={{ marginRight: 2 }} />
-                  {f.visible_to_customer ? '👁️ Shown' : 'Show on menu page'}
+                      const checked = e.target.checked;
+                      setFeedback(p => p.map(x => x.id === f.id ? {...x, visible_to_customer: checked} : x));
+                      await getSupabase().from('feedback').update({ visible_to_customer: checked }).eq('id', f.id);
+                    }} />
+                  &nbsp;{f.visible_to_customer ? '👁️ Shown on menu' : 'Show on menu page'}
                 </label>
               </div>
             </div>

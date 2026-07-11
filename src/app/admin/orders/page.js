@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import CountdownTimer from '@/components/CountdownTimer';
+import { useModal } from '@/components/useModal';
 
 const STATUS_LABELS = { new: '🟡 New', progress: '🔵 In Progress', out: '🚚 Out for Delivery', delivered: '✅ Delivered', cancelled: '❌ Cancelled' };
 const STATUS_BADGE  = { new: 'badge-new', progress: 'badge-progress', out: 'badge-progress', delivered: 'badge-delivered', cancelled: 'badge-new' };
@@ -15,9 +16,11 @@ const PAY_STATUS    = {
 
 export default function AdminOrdersPage() {
   const { profile } = useAuth();
+  const { modal, showConfirm, showPrompt } = useModal();
   const [orders,    setOrders]    = useState([]);
   const [filter,    setFilter]    = useState('all');
   const [undoing,   setUndoing]   = useState(null);
+  const [loading,   setLoading]   = useState(true);
   const [showManual, setShowManual] = useState(false);
   const [menuItems,  setMenuItems]  = useState([]);
   const [manualForm, setManualForm] = useState({ name: '', phone: '', address: '', note: '', delivery_date: '', delivery_time: '', payment_method: 'cod' });
@@ -42,6 +45,7 @@ export default function AdminOrdersPage() {
         .eq('kitchen_id', profile.kitchen_id)
         .order('created_at', { ascending: false });
       setOrders(data || []);
+      setLoading(false);
     }
     loadOrders();
 
@@ -72,25 +76,49 @@ export default function AdminOrdersPage() {
   }, [profile]);
 
   async function updateStatus(id, status) {
+    // Issue 10: Warn if moving future-dated order to In Progress
     if (status === 'progress') {
-      // Ask for prep time estimate
-      const mins = prompt('Estimated preparation time (minutes)?\nPress OK for default 45 mins or enter custom value:', '45');
-      if (mins === null) return; // cancelled
+      const order = orders.find(o => o.id === id);
+      if (order?.delivery_date) {
+        const deliveryDate = new Date(order.delivery_date);
+        const today = new Date(); today.setHours(0,0,0,0);
+        if (deliveryDate > today) {
+          const ok = await showConfirm({
+            icon: '📅', title: 'Future Order',
+            message: `This order is scheduled for ${deliveryDate.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}. Start preparing now?`,
+            confirmLabel: 'Yes, Start Now',
+          });
+          if (!ok) return;
+        }
+      }
+    }
+
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+
+    if (status === 'progress') {
+      const mins = await showPrompt({
+        icon: '👨‍🍳', title: 'Prep Time',
+        message: 'How long to prepare this order?',
+        label: 'ESTIMATED TIME (minutes)', inputType: 'number',
+        defaultValue: '45', placeholder: '45',
+        hint: 'Customer will see a live countdown on their tracking page',
+        confirmLabel: 'Start Timer',
+      });
+      if (mins === null) { setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'new' } : o)); return; }
       const estimated = Math.max(5, Number(mins) || 45);
-      await getSupabase().from('orders').update({
-        status,
-        estimated_minutes: estimated,
-        timer_started_at:  new Date().toISOString(),
-      }).eq('id', id);
+      await getSupabase().from('orders').update({ status, estimated_minutes: estimated, timer_started_at: new Date().toISOString() }).eq('id', id);
     } else if (status === 'out') {
-      const mins = prompt('Estimated delivery time (minutes)?\nPress OK for default 20 mins:', '20');
-      if (mins === null) return;
+      const mins = await showPrompt({
+        icon: '🚚', title: 'Delivery Time',
+        message: 'How long until delivery?',
+        label: 'ESTIMATED TIME (minutes)', inputType: 'number',
+        defaultValue: '20', placeholder: '20',
+        hint: 'Customer will see a live countdown on their tracking page',
+        confirmLabel: 'Start Timer',
+      });
+      if (mins === null) { setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'progress' } : o)); return; }
       const estimated = Math.max(5, Number(mins) || 20);
-      await getSupabase().from('orders').update({
-        status,
-        estimated_minutes: estimated,
-        timer_started_at:  new Date().toISOString(),
-      }).eq('id', id);
+      await getSupabase().from('orders').update({ status, estimated_minutes: estimated, timer_started_at: new Date().toISOString() }).eq('id', id);
     } else {
       await getSupabase().from('orders').update({ status }).eq('id', id);
     }
@@ -102,12 +130,13 @@ export default function AdminOrdersPage() {
 
   // Soft delete by admin (is_deleted = true, deleted_by = 'admin')
   async function softDelete(id) {
-    if (!confirm('Hide this order? You can undo this anytime from the Cancelled tab.')) return;
-    await getSupabase().from('orders').update({
-      is_deleted: true,
-      deleted_by: 'admin',
-      deleted_at: new Date().toISOString(),
-    }).eq('id', id);
+    const ok = await showConfirm({
+      icon: '🗑️', title: 'Hide this order?',
+      message: 'It will move to the Hidden tab. You can restore it anytime.',
+      confirmLabel: 'Hide', cancelLabel: 'Keep',
+    });
+    if (!ok) return;
+    await getSupabase().from('orders').update({ is_deleted: true, deleted_by: 'admin', deleted_at: new Date().toISOString() }).eq('id', id);
   }
 
   // Undo delete — restores order to its original state
@@ -125,7 +154,12 @@ export default function AdminOrdersPage() {
     const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
     const cart = {};
     items.forEach((item, i) => {
-      cart[`existing_${i}`] = { name: item.name, price: Number(item.price) || 0, emoji: item.emoji || '🍽️', qty: Number(item.qty) || 1, };
+      cart[`existing_${i}`] = {
+        name:  item.name,
+        price: Number(item.price) || 0,
+        emoji: item.emoji || '🍽️',
+        qty:   Number(item.qty)   || 1,  // default 1 if undefined/null
+      };
     });
     setEditCart(cart);
     setEditingOrder(order);
@@ -146,14 +180,19 @@ export default function AdminOrdersPage() {
     setEditCart({});
   }
 
-  async function confirmPayment(order) {    const received = prompt(
-      `Enter amount received for #${order.id}\nTotal: ₹${order.total}${order.amount_received > 0 ? `\nPreviously received: ₹${order.amount_received}` : ''}`,
-      String(order.total)
-    );
+  async function confirmPayment(order) {
+    const received = await showPrompt({
+      icon: '💳', title: 'Confirm Payment Received',
+      message: `Order #${order.id} · Total ₹${order.total}${order.amount_received > 0 ? ` · Previously received ₹${order.amount_received}` : ''}`,
+      label: 'AMOUNT RECEIVED (₹)', inputType: 'number',
+      defaultValue: String(order.total), placeholder: String(order.total),
+      confirmLabel: '✅ Confirm',
+    });
     if (received === null) return;
     const amt    = Math.max(0, Number(received) || 0);
     const status = amt >= order.total ? 'confirmed' : amt > 0 ? 'partial' : 'pending';
     await getSupabase().from('orders').update({ payment_status: status, amount_received: amt }).eq('id', order.id);
+    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, payment_status: status, amount_received: amt } : o));
   }
 
   async function saveManualOrder() {
@@ -207,7 +246,7 @@ export default function AdminOrdersPage() {
 
   // Filter by tab first, then by search query
   const tabFiltered =
-    filter === 'hidden' ? cancelledOrders :
+    filter === 'hidden'    ? cancelledOrders :   // is_deleted = soft-deleted (hidden)
     filter === 'cancelled' ? activeOrders.filter((o) => o.status === 'cancelled') :
     filter === 'unpaid'    ? activeOrders.filter((o) => o.payment_status !== 'confirmed' && o.status !== 'cancelled') :
     filter === 'all'       ? activeOrders.filter((o) => o.status !== 'cancelled') :
@@ -233,8 +272,9 @@ export default function AdminOrdersPage() {
   const progCount     = activeOrders.filter((o) => o.status === 'progress').length;
   const doneCount     = activeOrders.filter((o) => o.status === 'delivered').length;
   const revenue       = activeOrders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.total, 0);
-  const unpaidOrders  = activeOrders.filter((o) => o.payment_status !== 'confirmed');
-  const pendingAmount = unpaidOrders.reduce((s, o) => s + (o.total - (o.amount_received || 0)), 0);
+  const unpaidOrders   = activeOrders.filter((o) => o.payment_status !== 'confirmed' && o.status !== 'cancelled');
+  const pendingAmount  = unpaidOrders.reduce((s, o) => s + (o.total - (o.amount_received || 0)), 0);
+  const refundsPending = orders.filter((o) => o.status === 'cancelled' && o.advance_paid && o.advance_amount > 0 && o.refund_status !== 'completed');
 
   // Sort: orders with earliest delivery_date+time first, then by created_at
   function sortByDelivery(list) {
@@ -254,10 +294,18 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="admin-page">
+      {modal}
       <div className="admin-hero">
         <h2>📋 Orders</h2>
         <p>Real-time incoming orders — update status &amp; notify customers</p>
       </div>
+
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
+          <div style={{ fontSize: '2rem', marginBottom: 8, animation: 'spin 1s linear infinite', display: 'inline-block' }}>⏳</div>
+          <div style={{ fontWeight: 600 }}>Fetching orders…</div>
+        </div>
+      )}
 
       {/* WhatsApp share prompt after manual order saved */}
       {savedOrderId && (() => {
@@ -305,8 +353,8 @@ export default function AdminOrdersPage() {
               <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--muted)', marginBottom: 8, letterSpacing: 0.5 }}>ITEMS (tap to add more)</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
                 {menuItems.map((item) => {
-                  const inCart = Object.values(editCart).find(c => c.name === item.name);
-                  const qty    = Number(inCart?.qty) || 0;
+                  const inCart  = Object.values(editCart).find(c => c.name === item.name);
+                  const qty     = Number(inCart?.qty) || 0;
                   const cartKey = Object.entries(editCart).find(([,c]) => c.name === item.name)?.[0] || `m_${item.id}`;
                   return (
                     <button key={item.id} onClick={() => setEditCart(p => ({ ...p, [cartKey]: { name: item.name, price: item.price, emoji: item.emoji, qty: (p[cartKey]?.qty || 0) + 1 } }))}
@@ -606,6 +654,23 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
+      {/* REFUNDS PENDING ALERT */}
+      {refundsPending.length > 0 && (
+        <div style={{ background: '#fef9c3', border: '1.5px solid #fde68a', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#854d0e' }}>
+              💰 {refundsPending.length} refund{refundsPending.length > 1 ? 's' : ''} pending — ₹{refundsPending.reduce((s,o) => s + o.advance_amount, 0).toLocaleString('en-IN')} total
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#92400e', marginTop: 2 }}>
+              {refundsPending.map(o => o.customer_name).join(', ')}
+            </div>
+          </div>
+          <button onClick={() => setFilter('cancelled')} style={{ background: '#854d0e', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            View Cancelled →
+          </button>
+        </div>
+      )}
+
       {/* PENDING PAYMENT ALERT */}
       {pendingAmount > 0 && (
         <div style={{ background: '#fef9c3', border: '1.5px solid #fde68a', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
@@ -677,20 +742,15 @@ export default function AdminOrdersPage() {
             {f === 'all' ? 'All Orders' : STATUS_LABELS[f]}
           </button>
         ))}
-        <button className={`cat-tab ${filter === 'cancelled' ? 'active' : ''}`} onClick={() => setFilter('cancelled')} style={filter !== 'cancelled' && activeOrders.filter(o=>o.status==='cancelled').length > 0 ? { borderColor: 'var(--red)', color: 'var(--red)' } : {}}>
+        <button className={`cat-tab ${filter === 'cancelled' ? 'active' : ''}`} onClick={() => setFilter('cancelled')}
+          style={filter !== 'cancelled' && activeOrders.filter(o=>o.status==='cancelled').length > 0 ? { borderColor: 'var(--red)', color: 'var(--red)' } : {}}>
           ❌ Cancelled {activeOrders.filter(o=>o.status==='cancelled').length > 0 && `(${activeOrders.filter(o=>o.status==='cancelled').length})`}
         </button>
-        <button
-          className={`cat-tab ${filter === 'unpaid' ? 'active' : ''}`}
-          onClick={() => setFilter('unpaid')}
-          style={filter !== 'unpaid' && unpaidOrders.length > 0 ? { borderColor: '#854d0e', color: '#854d0e' } : {}}
-        >
+        <button className={`cat-tab ${filter === 'unpaid' ? 'active' : ''}`} onClick={() => setFilter('unpaid')}
+          style={filter !== 'unpaid' && unpaidOrders.length > 0 ? { borderColor: '#854d0e', color: '#854d0e' } : {}}>
           💳 Unpaid {unpaidOrders.length > 0 && `(${unpaidOrders.length})`}
         </button>
-        <button
-          className={`cat-tab ${filter === 'hidden' ? 'active' : ''}`}
-          onClick={() => setFilter('hidden')}
-          style={{ opacity: 0.6 }}>
+        <button className={`cat-tab ${filter === 'hidden' ? 'active' : ''}`} onClick={() => setFilter('hidden')} style={{ opacity: 0.6 }}>
           🗑️ Hidden {cancelledOrders.length > 0 && `(${cancelledOrders.length})`}
         </button>
       </div>
@@ -745,32 +805,37 @@ export default function AdminOrdersPage() {
             <div className="order-items" style={{ fontSize: '0.82rem' }}>📍 {order.address}</div>
             <div className="order-total" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <span>₹{order.total}</span>
-              {/* Payment status badge */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                {(() => {
-                  const ps = PAY_STATUS[order.payment_status || 'pending'];
-                  return (
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: ps.bg, color: ps.color, whiteSpace: 'nowrap' }}>
-                      {ps.label}
-                      {order.amount_received > 0 && order.payment_status !== 'confirmed' && ` ₹${order.amount_received}`}
+              {/* Only show payment tracking for non-cancelled orders */}
+              {order.status !== 'cancelled' && !isCancelled && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {(() => {
+                    const ps = PAY_STATUS[order.payment_status || 'pending'];
+                    return (
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: ps.bg, color: ps.color, whiteSpace: 'nowrap' }}>
+                        {ps.label}
+                        {order.amount_received > 0 && order.payment_status !== 'confirmed' && ` ₹${order.amount_received}`}
+                      </span>
+                    );
+                  })()}
+                  {order.payment_status !== 'confirmed' && (
+                    <button className="action-btn" style={{ fontSize: '0.75rem', background: '#dcfce7', color: '#166534', padding: '5px 10px', whiteSpace: 'nowrap' }}
+                      onClick={() => confirmPayment(order)}>
+                      ✅ Confirm Payment
+                    </button>
+                  )}
+                  {order.advance_paid && order.advance_amount > 0 && (
+                    <span style={{ fontSize: '0.75rem', background: '#ede9fe', color: '#7c3aed', borderRadius: 20, padding: '3px 10px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      Advance ₹{order.advance_amount}
                     </span>
-                  );
-                })()}
-                {order.payment_status !== 'confirmed' && (
-                  <button
-                    className="action-btn"
-                    style={{ fontSize: '0.75rem', background: '#dcfce7', color: '#166534', padding: '5px 10px', whiteSpace: 'nowrap' }}
-                    onClick={() => confirmPayment(order)}
-                  >
-                    ✅ Confirm Payment
-                  </button>
-                )}
-                {order.advance_paid && order.advance_amount > 0 && (
-                  <span style={{ fontSize: '0.75rem', background: '#ede9fe', color: '#7c3aed', borderRadius: 20, padding: '3px 10px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    Advance ₹{order.advance_amount}
-                  </span>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
+              {/* Cancelled + had advance payment — show reminder */}
+              {order.status === 'cancelled' && order.advance_paid && order.advance_amount > 0 && (
+                <div style={{ fontSize: '0.78rem', background: '#fef9c3', color: '#854d0e', borderRadius: 8, padding: '4px 10px', fontWeight: 700 }}>
+                  ⚠️ Advance ₹{order.advance_amount} pending refund
+                </div>
+              )}
             </div>
 
             {/* HIDDEN ORDER (is_deleted) — show undo button */}
@@ -779,12 +844,8 @@ export default function AdminOrdersPage() {
                 <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>
                   🗑️ Hidden {order.deleted_at ? new Date(order.deleted_at).toLocaleString('en-IN') : ''}
                 </div>
-                <button
-                  className="action-btn"
-                  style={{ background: '#fef9c3', color: '#854d0e', fontWeight: 700 }}
-                  onClick={() => undoDelete(order.id)}
-                  disabled={undoing === order.id}
-                >
+                <button className="action-btn" style={{ background: '#fef9c3', color: '#854d0e', fontWeight: 700 }}
+                  onClick={() => undoDelete(order.id)} disabled={undoing === order.id}>
                   {undoing === order.id ? '⏳ Restoring…' : '↩️ Unhide'}
                 </button>
               </div>
@@ -794,38 +855,50 @@ export default function AdminOrdersPage() {
             {!isCancelled && order.status !== 'cancelled' && (
               <div className="order-actions">
                 {order.status === 'new'      && <button className="action-btn accept"  onClick={() => updateStatus(order.id, 'progress')}>▶ In Progress</button>}
-                {order.status === 'progress'      && <button className="action-btn accept"  onClick={() => updateStatus(order.id, 'out')}>🚚 Out for Delivery</button>}
-                {order.status === 'out' && <button className="action-btn deliver" onClick={() => updateStatus(order.id, 'delivered')}>✅ Delivered</button>}
+                {order.status === 'progress' && <button className="action-btn accept"  onClick={() => updateStatus(order.id, 'out')}>🚚 Out for Delivery</button>}
+                {order.status === 'out'      && <button className="action-btn deliver" onClick={() => updateStatus(order.id, 'delivered')}>✅ Delivered</button>}
                 <button className="action-btn wa" onClick={() => openWhatsApp(order)}>📱 WhatsApp</button>
-                {order.status !== 'delivered' && (
+                {/* Issue 8: Edit only for new/progress — not out/delivered */}
+                {(order.status === 'new' || order.status === 'progress') && (
                   <button className="action-btn" style={{ background: '#eff6ff', color: '#1e40af' }} onClick={() => openEditOrder(order)}>✏️ Edit</button>
                 )}
-                {/* Cancel - customer requested, keeps order visible with cancelled status */}
+                {/* Pre-delivery reminder for future dated orders */}
+                {order.delivery_date && new Date(order.delivery_date) > new Date() && order.status === 'new' && (
+                  <button className="action-btn" style={{ background: '#fef9c3', color: '#854d0e' }}
+                    onClick={() => {
+                      const msg = encodeURIComponent(`Hi ${order.customer_name}! 🍛 Confirming your order for ${new Date(order.delivery_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}${order.delivery_time ? ` at ${order.delivery_time}` : ''}.\n\nItems: ${(Array.isArray(order.items) ? order.items : JSON.parse(order.items||'[]')).map(i=>`${i.name} ×${i.qty}`).join(', ')}\nTotal: ₹${order.total}\n\nWe'll see you then! 🙏`);
+                      window.open(`https://wa.me/${order.customer_phone.replace(/\D/g,'')}?text=${msg}`, '_blank');
+                    }}>
+                    📅 Confirm Delivery
+                  </button>
+                )}
                 {order.status !== 'delivered' && (
-                  <button
-                    className="action-btn"
-                    style={{ background: '#fef2f2', color: '#991b1b' }}
-                    onClick={async ()=> {
-                      if (!confirm(`Cancel order #${order.id} for ${order.customer_name}?`)) return ;
+                  <button className="action-btn" style={{ background: '#fef2f2', color: '#991b1b' }}
+                    onClick={async () => {
+                      const ok = await showConfirm({
+                        icon: '❌', title: 'Cancel Order?',
+                        message: `Cancel order #${order.id} for ${order.customer_name}? The customer will see "Order Cancelled" on their tracking page.`,
+                        confirmLabel: 'Yes, Cancel', danger: true,
+                      });
+                      if (!ok) return;
+                      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'cancelled' } : o));
                       await getSupabase().from('orders').update({ status: 'cancelled' }).eq('id', order.id);
-                    }}
-                  >
+                    }}>
                     ❌ Cancel Order
                   </button>
                 )}
-                {/* Hide - admin removes test/spam orders from view */}
-                <button className="action-btn" style={{ background: '#f3f4f6', color: '#6b7280', marginLeft: 'auto' }}
-                onClick={() => softDelete(order.id)}>
+                <button className="action-btn" style={{ background: '#f3f4f6', color: '#6b7280', marginLeft: 'auto' }} onClick={() => softDelete(order.id)}>
                   🗑️
                 </button>
               </div>
             )}
 
             {/* CANCELLED status order */}
-            {isCancelled && order.status === 'cancelled' && (
+            {!isCancelled && order.status === 'cancelled' && (
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style = {{ fontSize: '0.82rem', color: 'var(--red)', fontWeight: 600 }}>❌ Cancelled by customer request</span>
-                <button className="action-btn" style={{ background: '#dcfce7', color: '#166534', fontSize: '0.78rem' }} onClick={ async () => { await getSupabase().from('orders').update({ status: 'new' }).eq('id', order.id); }}>
+                <span style={{ fontSize: '0.82rem', color: 'var(--red)', fontWeight: 600 }}>❌ Cancelled by customer request</span>
+                <button className="action-btn" style={{ background: '#dcfce7', color: '#166534', fontSize: '0.78rem' }}
+                  onClick={async () => { await getSupabase().from('orders').update({ status: 'new' }).eq('id', order.id); }}>
                   ↩️ Restore to New
                 </button>
               </div>

@@ -9,8 +9,6 @@ export default function SlugCheckoutPage({ params }) {
   const { slug }  = params;
   const router    = useRouter();
   const [kitchen, setKitchen]   = useState(null);
-  const [kitchenLoading, setKitchenLoading] = useState(true);
-  const [kitchenError, setKitchenError] = useState('');
   const [cart,    setCart]      = useState({});
   const [payment, setPayment]   = useState('');
   const [loading, setLoading]   = useState(false);
@@ -27,57 +25,28 @@ export default function SlugCheckoutPage({ params }) {
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
-    async function loadCheckout() {
-      setKitchenLoading(true);
-      setKitchenError('');
-
-      const { data, error } = await getSupabase()
-        .from('kitchens')
-        .select('*')
-        .eq('slug', slug)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Kitchen lookup failed:', error);
-        setKitchenError(error.message || 'Kitchen lookup failed');
-        setKitchen(null);
-      } else if (!data) {
-        setKitchenError('Kitchen not found');
-        setKitchen(null);
-      } else {
-        setKitchen({ ...data, plan: data.plan || 'starter' });
-      }
-
-      setKitchenLoading(false);
-    }
-
-    loadCheckout();
+    getSupabase().from('kitchens').select('id,name,upi_id,plan,delivery_fee,free_delivery_above').eq('slug', slug).single()
+      .then(({ data }) => setKitchen(data));
     try { setCart(JSON.parse(localStorage.getItem(`ck_cart_${slug}`) || '{}')); } catch {}
   }, [slug]);
 
   const items    = Object.values(cart);
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
-  const delivery = subtotal > 1000 ? 0 : 50;
-  const total    = subtotal + delivery;
-  const canAcceptGpay = Boolean(kitchen?.upi_id);
+  const freeAbove = kitchen?.free_delivery_above ?? 1000;
+  const fee       = kitchen?.delivery_fee ?? 50;
+  const delivery  = freeAbove === 0 ? fee : subtotal >= freeAbove ? 0 : fee;
+  const total     = subtotal + delivery;
 
   function field(e) { setForm((p) => ({ ...p, [e.target.name]: e.target.value })); }
-
-  function isMissingScheduleColumn(error) {
-    const msg = `${error?.message || ''} ${error?.details || ''}`;
-    return msg.includes('delivery_date') || msg.includes('delivery_time');
-  }
 
   async function placeOrder() {
     if (!form.name || !form.phone || !form.address) { alert('Please fill all required fields'); return; }
     if (!payment) { alert('Please select a payment method'); return; }
-    if (!items.length) { alert('Your cart is empty. Add items before confirming the order.'); return; }
-    if (kitchenLoading) { alert('Kitchen data is still loading. Please wait a moment and try again.'); return; }
-    if (!kitchen) { alert(kitchenError || 'Kitchen not found. Please go back to the menu and try again.'); return; }
+    if (!items.length || !kitchen) return;
     setLoading(true);
 
     // UUID-based order ID — unguessable, safe to use as tracking token
-    const id = 'SF-' + (crypto?.randomUUID ? crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase() : Math.random().toString(36).slice(2, 12).toUpperCase());
+    const id = 'SF-' + crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase();
     const order = {
       id,
       kitchen_id:     kitchen.id,
@@ -93,20 +62,8 @@ export default function SlugCheckoutPage({ params }) {
       status:         'new',
     };
 
-    const supabase = getSupabase();
-    let { error } = await supabase.from('orders').insert(order);
-
-    if (error && isMissingScheduleColumn(error)) {
-      const { delivery_date, delivery_time, ...orderWithoutSchedule } = order;
-      ({ error } = await supabase.from('orders').insert(orderWithoutSchedule));
-    }
-
-    if (error) {
-      console.error('Order insert failed:', error);
-      alert(error.message ? `Failed to place order: ${error.message}` : 'Failed to place order. Please try again.');
-      setLoading(false);
-      return;
-    }
+    const { error } = await getSupabase().from('orders').insert(order);
+    if (error) { alert('Failed to place order. Please try again.'); setLoading(false); return; }
 
     localStorage.removeItem(`ck_cart_${slug}`);
     window.dispatchEvent(new Event('cart-updated'));
@@ -117,11 +74,6 @@ export default function SlugCheckoutPage({ params }) {
     <div className="page" style={{ maxWidth: 600 }}>
       <div className="section-title">📋 Place Order</div>
       <div className="info-box">⚠️ Orders are prepared in bulk. Please confirm party count before proceeding.</div>
-      {kitchenError && (
-        <div style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: 10, padding: '12px 14px', color: 'var(--red)', fontSize: '0.88rem', fontWeight: 600, marginBottom: 14 }}>
-          {kitchenError}
-        </div>
-      )}
 
       <div className="form-group"><label>YOUR NAME</label>
         <input name="name" value={form.name} onChange={field} placeholder="Ravi Kumar" required />
@@ -159,7 +111,7 @@ export default function SlugCheckoutPage({ params }) {
         <div className={`pay-opt ${payment === 'cod' ? 'selected' : ''}`} onClick={() => setPayment('cod')}>
           <div className="pay-icon">💵</div><h4>Cash on Delivery</h4><p>Pay when food arrives</p>
         </div>
-        {canAcceptGpay && (
+        {kitchen?.plan !== 'starter' && (
           <div className={`pay-opt ${payment === 'gpay' ? 'selected' : ''}`} onClick={() => setPayment('gpay')}>
             <div className="pay-icon">📱</div><h4>GPay / UPI</h4><p>Scan &amp; pay instantly</p>
           </div>
@@ -198,8 +150,27 @@ export default function SlugCheckoutPage({ params }) {
         </div>
       )}
 
-      <button className="btn-primary" style={{ marginTop: 20, opacity: loading || kitchenLoading || !kitchen ? 0.7 : 1 }} onClick={placeOrder} disabled={loading || kitchenLoading || !kitchen}>
-        {loading ? 'Placing order…' : kitchenLoading ? 'Loading kitchen…' : '✅ Confirm Order'}
+      {/* Order summary */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginTop: 20, marginBottom: 4 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', marginBottom: 4 }}>
+          <span>Subtotal</span><span>₹{subtotal}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', marginBottom: 6, color: delivery === 0 ? 'var(--green)' : 'var(--muted)' }}>
+          <span>Delivery</span>
+          <span>{delivery === 0 ? 'FREE 🎉' : `₹${delivery}`}</span>
+        </div>
+        {delivery > 0 && freeAbove > 0 && (
+          <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: 4 }}>
+            Add ₹{freeAbove - subtotal} more for free delivery
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1rem', borderTop: '1px solid #f0f0f0', paddingTop: 8 }}>
+          <span>Total</span><span style={{ color: 'var(--primary)' }}>₹{total}</span>
+        </div>
+      </div>
+
+      <button className="btn-primary" style={{ marginTop: 12, opacity: loading ? 0.7 : 1 }} onClick={placeOrder} disabled={loading}>
+        {loading ? 'Placing order…' : '✅ Confirm Order'}
       </button>
       <Link href={`/${slug}/cart`} className="btn-outline" style={{ marginTop: 10 }}>← Back to Cart</Link>
     </div>

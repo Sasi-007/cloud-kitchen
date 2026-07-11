@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 
-export default function ImageUpload({ bucket, onUpload, currentUrl, label = 'Upload Image' }) {
+export default function ImageUpload({ bucket, onUpload, currentUrl, label = 'Upload Image', stableKey }) {
   const [uploading, setUploading] = useState(false);
   const [preview,   setPreview]   = useState(currentUrl || '');
   const inputRef = useRef();
@@ -19,7 +19,9 @@ export default function ImageUpload({ bucket, onUpload, currentUrl, label = 'Upl
 
     const supabase  = getSupabase();
     const ext       = file.name.split('.').pop();
-    const filename  = `${Date.now()}.${ext}`;
+    // Use stable key if provided (prevents duplicate files in storage)
+    // e.g. stableKey="kitchen_abc123_logo" → always overwrites same file
+    const filename  = stableKey ? `${stableKey}.${ext}` : `${Date.now()}.${ext}`;
 
     const { error } = await supabase.storage.from(bucket).upload(filename, file, { upsert: true });
     if (error) { alert('Upload failed: ' + error.message); setUploading(false); return; }

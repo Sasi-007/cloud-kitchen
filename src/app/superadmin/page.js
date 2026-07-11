@@ -16,6 +16,7 @@ export default function SuperAdminPage() {
   const [editId,       setEditId]       = useState(null);
   const [editForm,     setEditForm]     = useState({});
   const [leads,        setLeads]        = useState([]);
+  const [loadingData,  setLoadingData]  = useState(true);
   const [newLeadPopup, setNewLeadPopup] = useState(null); // latest incoming lead for popup
 
   function loadLeads() {
@@ -40,8 +41,10 @@ export default function SuperAdminPage() {
   }, []);
 
   async function loadKitchens() {
+    setLoadingData(true);
     const { data } = await getSupabase().from('kitchens').select('*').order('created_at', { ascending: false });
     setKitchens(data || []);
+    setLoadingData(false);
   }
 
   function kField(e) { setKitchenForm((p) => ({ ...p, [e.target.name]: e.target.value })); }
@@ -101,9 +104,9 @@ export default function SuperAdminPage() {
   async function saveEdit(id) {
     const { error } = await getSupabase().from('kitchens').update(editForm).eq('id', id);
     if (error) {
-      setMessage('❌ Save failed: ' + error.message );
-      return ;
-    }    
+      setMessage('❌ Save failed: ' + error.message + ' — make sure you ran migrations_2026_07_05.sql in Supabase');
+      return;
+    }
     setEditId(null);
     setMessage('✅ Kitchen updated successfully');
     loadKitchens();
@@ -181,6 +184,7 @@ export default function SuperAdminPage() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>All Kitchens</div>
+        {loadingData && <div style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: 4 }}>⏳ Fetching kitchens…</div>}
         <button className="btn-primary" style={{ width: 'auto', padding: '10px 18px' }} onClick={() => setShowForm(!showForm)}>
           {showForm ? 'Cancel' : '+ Onboard New Kitchen'}
         </button>

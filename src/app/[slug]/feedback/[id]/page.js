@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 
@@ -13,6 +13,14 @@ export default function FeedbackPage({ params }) {
   const [comment,   setComment]   = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [loading,   setLoading]   = useState(false);
+  const [existing,  setExisting]  = useState(null); // existing feedback if already given
+  const [checking,  setChecking]  = useState(true);
+
+  // Check if feedback already exists for this order
+  useEffect(() => {
+    getSupabase().from('feedback').select('*').eq('order_id', id).maybeSingle()
+      .then(({ data }) => { setExisting(data); setChecking(false); });
+  }, [id]);
 
   function toggleTag(tag) {
     setTags((p) => p.includes(tag) ? p.filter((t) => t !== tag) : [...p, tag]);
@@ -35,6 +43,23 @@ export default function FeedbackPage({ params }) {
     });
     setSubmitted(true);
   }
+
+  if (checking) return <div className="page" style={{ textAlign: 'center', paddingTop: 80, color: 'var(--muted)' }}>Loading…</div>;
+
+  // Show existing feedback if already submitted
+  if (existing && !submitted) return (
+    <div className="page" style={{ textAlign: 'center', padding: '80px 20px' }}>
+      <div style={{ fontSize: '3rem', marginBottom: 16 }}>⭐</div>
+      <h2 style={{ fontWeight: 800, fontSize: '1.4rem', marginBottom: 8 }}>You already reviewed this order</h2>
+      <div style={{ marginBottom: 12 }}>
+        {[1,2,3,4,5].map(n => <span key={n} style={{ fontSize: '1.6rem', color: n <= existing.rating ? '#f59e0b' : '#e5e7eb' }}>★</span>)}
+      </div>
+      {existing.comment && <p style={{ color: 'var(--muted)', fontStyle: 'italic', marginBottom: 8 }}>"{existing.comment}"</p>}
+      {existing.tags?.length > 0 && <p style={{ color: 'var(--primary)', fontSize: '0.85rem', marginBottom: 16 }}>{existing.tags.join(' · ')}</p>}
+      <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginBottom: 24 }}>Your feedback has been received. Thank you!</p>
+      <Link href={`/${slug}`} className="btn-primary" style={{ maxWidth: 200, margin: '0 auto', display: 'block' }}>Back to Menu</Link>
+    </div>
+  );
 
   if (submitted) return (
     <div className="page" style={{ textAlign: 'center', padding: '80px 20px' }}>

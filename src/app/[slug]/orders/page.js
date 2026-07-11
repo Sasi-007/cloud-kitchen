@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 
@@ -28,15 +28,46 @@ export default function MyOrdersPage({ params }) {
       getSupabase().from('orders').select('*').eq('kitchen_id', kitchen.id)
         .eq('customer_phone', phone.trim()).eq('is_deleted', false)
         .order('created_at', { ascending: false }).limit(20),
+      // Issue 4: Only show custom requests that are NOT yet confirmed (confirmed = real order created)
       getSupabase().from('custom_requests').select('*').eq('kitchen_id', kitchen.id)
-        .eq('phone', phone.trim()).order('created_at', { ascending: false }).limit(10),
+        .eq('phone', phone.trim()).neq('status', 'confirmed').order('created_at', { ascending: false }).limit(10),
     ]);
 
     setOrders(ord || []);
     setCustoms(cust || []);
     setSearched(true);
     setLoading(false);
+
+    // Issue 12: Cache phone in sessionStorage so user doesn't retype
+    try { sessionStorage.setItem(`orders_phone_${slug}`, phone.trim()); } catch {}
   }
+
+  // Issue 12: Auto-fill + auto-search from session cache on page load
+  useEffect(() => {
+    try {
+      const cached = sessionStorage.getItem(`orders_phone_${slug}`);
+      if (cached) {
+        setPhone(cached);
+        // Directly run the lookup with the cached phone (no form submit needed)
+        setLoading(true);
+        getSupabase().from('kitchens').select('id').eq('slug', slug).single().then(({ data: kitchen }) => {
+          if (!kitchen) { setLoading(false); return; }
+          Promise.all([
+            getSupabase().from('orders').select('*').eq('kitchen_id', kitchen.id)
+              .eq('customer_phone', cached).eq('is_deleted', false)
+              .order('created_at', { ascending: false }).limit(20),
+            getSupabase().from('custom_requests').select('*').eq('kitchen_id', kitchen.id)
+              .eq('phone', cached).neq('status', 'confirmed').order('created_at', { ascending: false }).limit(10),
+          ]).then(([{ data: ord }, { data: cust }]) => {
+            setOrders(ord || []);
+            setCustoms(cust || []);
+            setSearched(true);
+            setLoading(false);
+          });
+        });
+      }
+    } catch {}
+  }, [slug]);
 
   return (
     <div className="page">
@@ -81,78 +112,106 @@ export default function MyOrdersPage({ params }) {
         )}
 
         {orders.map((order, idx) => {
-          const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
-          const isRecent = idx === 0;
+          const items       = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
+          const isCancelled = order.status === 'cancelled' || order.is_deleted;
+          const isRecent    = idx === 0 && !isCancelled;
           return (
             <div key={order.id} style={{
-              background: '#fff', borderRadius: 16, padding: '18px 20px', marginBottom: 12,
-              boxShadow: isRecent ? '0 4px 20px rgba(255,107,53,0.12)' : '0 1px 8px rgba(0,0,0,0.06)',
-              border: isRecent ? '1.5px solid #ffcbb0' : '1px solid #f0f0f0',
+              background:   isCancelled ? '#fef2f2' : '#fff',
+              borderRadius: 16, padding: '18px 20px', marginBottom: 12,
+              boxShadow:    isRecent ? '0 4px 20px rgba(255,107,53,0.12)' : '0 1px 8px rgba(0,0,0,0.06)',
+              border:       isCancelled ? '1.5px solid #fca5a5' : isRecent ? '1.5px solid #ffcbb0' : '1px solid #f0f0f0',
+              opacity:      isCancelled ? 0.88 : 1,
             }}>
               {isRecent && (
                 <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--primary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
                   Latest Order
                 </div>
               )}
+              {isCancelled && (
+                <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#dc2626', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  ❌ ORDER CANCELLED
+                </div>
+              )}
 
               {/* STATUS + DATE */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: '1.1rem' }}>{STATUS_ICON[order.status] || '📋'}</span>
+                  <span style={{ fontSize: '1.1rem' }}>{isCancelled ? '❌' : (STATUS_ICON[order.status] || '📋')}</span>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: STATUS_COLOR[order.status] }}>
-                      {/* {STATUS_LABEL[order.status] || order.status} */}
-                      {(STATUS_LABEL[order.status] || order.status)
-                      .charAt(0)
-                      .toUpperCase() +
-                      (STATUS_LABEL[order.status] || order.status).slice(1)}
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: isCancelled ? '#dc2626' : STATUS_COLOR[order.status] }}>
+                      {isCancelled ? 'Cancelled' : (STATUS_LABEL[order.status] || order.status)}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
                       {new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </div>
                   </div>
                 </div>
-                <div style={{ fontWeight: 900, fontSize: '1.05rem', color: 'var(--primary)' }}>₹{order.total}</div>
+                <div style={{ fontWeight: 900, fontSize: '1.05rem', color: isCancelled ? '#dc2626' : 'var(--primary)', textDecoration: isCancelled ? 'line-through' : 'none' }}>
+                  ₹{order.total}
+                </div>
               </div>
 
               {/* ORDER ID */}
               <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: 6, fontFamily: 'monospace' }}>#{order.id}</div>
 
-              {/* ITEMS */}
-              <div style={{ fontSize: '0.85rem', color: 'var(--text)', marginBottom: 8, lineHeight: 1.5 }}>
+              {/* ITEMS — dimmed if cancelled */}
+              <div style={{ fontSize: '0.85rem', color: 'var(--text)', marginBottom: 8, lineHeight: 1.5, opacity: isCancelled ? 0.55 : 1 }}>
                 {items.map((i) => `${i.emoji || '🍽️'} ${i.name} ×${i.qty}`).join(' · ')}
               </div>
 
-              {/* DELIVERY + CONTACT DETAILS — shows admin-updated values */}
-              <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {order.address && <span>📍 {order.address}</span>}
-                {order.customer_phone && <span>📞 {order.customer_phone}</span>}
-                {order.note && <span>📝 {order.note}</span>}
-              </div>
+              {/* DELIVERY DETAILS — only for active orders */}
+              {!isCancelled && (
+                <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {order.address && <span>📍 {order.address}</span>}
+                  {order.note && <span>📝 {order.note}</span>}
+                </div>
+              )}
 
               {/* DELIVERY SLOT */}
-              {(order.delivery_date || order.delivery_time) && (
+              {!isCancelled && (order.delivery_date || order.delivery_time) && (
                 <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#7c3aed', background: '#ede9fe', display: 'inline-block', borderRadius: 6, padding: '3px 10px', marginBottom: 10 }}>
                   📅 {order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : ''} {order.delivery_time || ''}
                 </div>
               )}
 
-              {/* ACTIONS */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <Link href={`/${slug}/order/${order.id}`} style={{
-                  flex: 1, textAlign: 'center', textDecoration: 'none',
-                  background: 'var(--primary)', color: '#fff', borderRadius: 10,
-                  padding: '9px 14px', fontWeight: 700, fontSize: '0.85rem'
+              {/* ADVANCE REFUND NOTICE */}
+              {isCancelled && order.advance_paid && order.advance_amount > 0 && (
+                <div style={{
+                  background: order.refund_status === 'completed' ? '#dcfce7' : '#fef9c3',
+                  border: `1px solid ${order.refund_status === 'completed' ? '#86efac' : '#fde68a'}`,
+                  borderRadius: 10, padding: '9px 12px', marginBottom: 10, fontSize: '0.82rem',
+                  color: order.refund_status === 'completed' ? '#166534' : '#854d0e',
                 }}>
-                  Track Order →
-                </Link>
-                <a href={`https://wa.me/?text=${encodeURIComponent(`Track my order #${order.id}: ${typeof window !== 'undefined' ? window.location.origin : ''}/${slug}/order/${order.id}`)}`}
-                  target="_blank" rel="noreferrer"
-                  style={{ background: '#dcfce7', color: '#166534', borderRadius: 10, padding: '9px 14px', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none' }}
-                >
-                  📱 Share
-                </a>
-              </div>
+                  {order.refund_status === 'completed'
+                    ? `✅ Refund of ₹${order.advance_amount} has been processed. Please check your account.`
+                    : `💰 You paid advance ₹${order.advance_amount}. Your refund is pending — the kitchen will process it soon.`
+                  }
+                </div>
+              )}
+
+              {/* ACTIONS */}
+              {!isCancelled ? (
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <Link href={`/${slug}/order/${order.id}`} style={{
+                    flex: 1, textAlign: 'center', textDecoration: 'none',
+                    background: 'var(--primary)', color: '#fff', borderRadius: 10,
+                    padding: '9px 14px', fontWeight: 700, fontSize: '0.85rem'
+                  }}>
+                    Track Order →
+                  </Link>
+                  <a href={`https://wa.me/?text=${encodeURIComponent(`Track my order #${order.id}: ${typeof window !== 'undefined' ? window.location.origin : ''}/${slug}/order/${order.id}`)}`}
+                    target="_blank" rel="noreferrer"
+                    style={{ background: '#dcfce7', color: '#166534', borderRadius: 10, padding: '9px 14px', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none' }}>
+                    📱 Share
+                  </a>
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.82rem', color: '#dc2626', marginTop: 4 }}>
+                  Have questions? Contact the kitchen directly.
+                </div>
+              )}
+
             </div>
           );
         })}

@@ -15,6 +15,7 @@ export default function KitchenMenuPage({ params }) {
   const [loading,    setLoading]    = useState(true);
   const [notFound,   setNotFound]   = useState(false);
   const [reviews,    setReviews]    = useState([]);
+  const [allRatings, setAllRatings] = useState([]); // all ratings for aggregate
 
   useEffect(() => {
     async function load() {
@@ -29,12 +30,17 @@ export default function KitchenMenuPage({ params }) {
         .order('category').order('sort_order');
       setMenuItems(items || []);
 
-      // Load approved reviews for trust display
+      // Load approved reviews — respects admin's max_reviews_shown setting
+      const limit = k.max_reviews_shown || 6;
       const { data: rev } = await supabase.from('feedback')
         .select('rating,comment,tags,is_manual,manual_note')
         .eq('kitchen_id', k.id).eq('visible_to_customer', true)
-        .order('created_at', { ascending: false }).limit(6);
+        .order('created_at', { ascending: false }).limit(limit);
       setReviews(rev || []);
+      // All ratings for aggregate score (independent of visibility)
+      const { data: allRev } = await supabase.from('feedback')
+        .select('rating').eq('kitchen_id', k.id);
+      setAllRatings((allRev || []).map(r => r.rating));
 
       try {
         const saved = JSON.parse(localStorage.getItem(`ck_cart_${slug}`) || '{}');
@@ -175,21 +181,111 @@ export default function KitchenMenuPage({ params }) {
       </div>
       {!filtered.length && <div className="empty-state"><div className="ico">🍽️</div><p>No items in this category yet.</p></div>}
 
-      {/* APPROVED REVIEWS — builds trust */}
-      {reviews.length > 0 && (
-        <div style={{ marginTop: 32 }}>
-          <div style={{ fontWeight: 800, fontSize: '1rem', marginBottom: 14 }}>⭐ What customers say</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
-            {reviews.map((r, i) => (
-              <div key={i} style={{ background: '#fff', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-                <div style={{ fontWeight: 700, marginBottom: 4 }}>{'⭐'.repeat(r.rating)}</div>
-                {r.comment && <div style={{ fontSize: '0.88rem', color: 'var(--text)', fontStyle: 'italic', lineHeight: 1.5 }}>"{r.comment}"</div>}
-                {r.tags?.length > 0 && <div style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: 6 }}>{r.tags.join(' · ')}</div>}
+      {/* ── REVIEWS SECTION ─────────────────────────────── */}
+      {(reviews.length > 0 || allRatings.length > 0) && (() => {
+        const avg       = allRatings.length ? (allRatings.reduce((s, r) => s + r, 0) / allRatings.length) : 0;
+        const rounded   = Math.round(avg * 10) / 10;
+        const breakdown = [5,4,3,2,1].map(n => ({ n, count: allRatings.filter(r => r === n).length }));
+
+        return (
+          <div style={{ marginTop: 40, marginBottom: 8 }}>
+            {/* Section header */}
+            <div style={{ textAlign: 'center', marginBottom: 28 }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 }}>
+                Customer Reviews
               </div>
-            ))}
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 900, marginBottom: 4 }}>What our customers say</h2>
+              <p style={{ color: 'var(--muted)', fontSize: '0.88rem' }}>Real feedback from real orders</p>
+            </div>
+
+            {/* Overall rating summary */}
+            {allRatings.length >= 3 && (
+              <div style={{
+                background: 'linear-gradient(135deg, #fff8f5, #fff)',
+                border: '1.5px solid #ffcbb0', borderRadius: 20,
+                padding: '24px 28px', marginBottom: 24,
+                display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap',
+              }}>
+                {/* Big score */}
+                <div style={{ textAlign: 'center', minWidth: 80 }}>
+                  <div style={{ fontSize: '3.5rem', fontWeight: 900, color: 'var(--primary)', lineHeight: 1 }}>{rounded}</div>
+                  <div style={{ fontSize: '1.2rem', marginTop: 4 }}>
+                    {[1,2,3,4,5].map(n => (
+                      <span key={n} style={{ color: n <= Math.round(avg) ? '#f59e0b' : '#e5e7eb' }}>★</span>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: 4 }}>
+                    {allRatings.length} review{allRatings.length > 1 ? 's' : ''}
+                  </div>
+                </div>
+
+                {/* Breakdown bars */}
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  {breakdown.map(({ n, count }) => {
+                    const pct = allRatings.length ? Math.round((count / allRatings.length) * 100) : 0;
+                    return (
+                      <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--muted)', width: 8, textAlign: 'right' }}>{n}</span>
+                        <span style={{ color: '#f59e0b', fontSize: '0.7rem' }}>★</span>
+                        <div style={{ flex: 1, height: 6, background: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${pct}%`, background: n >= 4 ? '#f59e0b' : n === 3 ? '#fb923c' : '#ef4444', borderRadius: 3, transition: 'width 0.8s ease' }} />
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--muted)', width: 28, textAlign: 'right' }}>{pct}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Review cards */}
+            {reviews.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 14 }}>
+                {reviews.map((r, i) => (
+                  <div key={i} style={{
+                    background: '#fff', borderRadius: 16, padding: '18px 20px',
+                    boxShadow: '0 2px 16px rgba(0,0,0,0.07)', border: '1px solid #f5f5f5',
+                    position: 'relative', overflow: 'hidden',
+                  }}>
+                    {/* Decorative quote */}
+                    <div style={{ position: 'absolute', top: 10, right: 14, fontSize: '3rem', color: '#f0f0f0', fontFamily: 'Georgia, serif', lineHeight: 1, userSelect: 'none' }}>"</div>
+
+                    {/* Stars */}
+                    <div style={{ marginBottom: 8 }}>
+                      {[1,2,3,4,5].map(n => (
+                        <span key={n} style={{ color: n <= r.rating ? '#f59e0b' : '#e5e7eb', fontSize: '0.95rem' }}>★</span>
+                      ))}
+                    </div>
+
+                    {/* Comment */}
+                    {r.comment && (
+                      <p style={{ fontSize: '0.88rem', color: '#374151', lineHeight: 1.65, marginBottom: 10, fontStyle: 'italic', position: 'relative', zIndex: 1 }}>
+                        "{r.comment}"
+                      </p>
+                    )}
+
+                    {/* Tags */}
+                    {r.tags?.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                        {r.tags.map((t, ti) => (
+                          <span key={ti} style={{ fontSize: '0.7rem', fontWeight: 600, background: '#fff8f5', color: 'var(--primary)', borderRadius: 20, padding: '2px 10px', border: '1px solid #ffcbb0' }}>
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Footer */}
+                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>
+                      ✅ Verified Customer
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* CONTACT KITCHEN FOOTER */}
       {(kitchen?.phone || kitchen?.address) && (
