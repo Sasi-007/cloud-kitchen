@@ -68,11 +68,6 @@ const PLANS = [
   },
 ];
 
-export const metadata = {
-  title: 'Pricing — CloudKitchen Platform',
-  description: 'Simple, transparent pricing for cloud kitchens. Start free, upgrade as you grow.',
-};
-
 export default function PricingPage() {
   return (
     <div>
