@@ -22,9 +22,11 @@ export default function AdminBrandingPage() {
     const k = profile.kitchens;
     setForm({ name: k.name || '', tagline: k.tagline || '', upi_id: k.upi_id || '', phone: k.phone || '', address: k.address || '',
       delivery_fee: k.delivery_fee ?? 50, free_delivery_above: k.free_delivery_above ?? 1000 });
-    setLogoUrl(k.logo_url   || '');
-    setBannerUrl(k.banner_url || '');
-  }, [profile]);
+    getSupabase().from('kitchens').select('logo_url,banner_url').eq('id', profile.kitchen_id).single().then(({data})=> {
+      setLogoUrl(data?.logoUrl || '');
+      setBannerUrl(data?.banner_url || '');
+    });
+  }, [profile?.kitchen_id]);
 
   function field(e) { setForm((p) => ({ ...p, [e.target.name]: e.target.value })); }
 
@@ -112,13 +114,47 @@ export default function AdminBrandingPage() {
       <div style={{ background: '#fff', borderRadius: 16, padding: 28, boxShadow: 'var(--shadow)' }}>
         {plan !== 'starter' && (
           <>
-            <div style={{ fontWeight: 700, marginBottom: 16 }}>Kitchen Logo</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ fontWeight: 700 }}>Kitchen Logo</div>
+              {logoUrl && (
+                <button onClick={async () => {
+                  setLogoUrl('');
+                  await getSupabase().from('kitchens').update({ logoUrl: null }).eq('id', profile.kitchen_id );
+                }} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: 8, padding: '5px 12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer'}}>🗑️ Remove Logo</button>
+              )}
+            </div>
+            {logoUrl && (
+              <div style={{ marginBottom: 12,display: 'flex', alignItems: 'center', gap: 12}}>
+                <div style={{ width: 56, height: 56, borderRadius: 10, overflow: 'hidden', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #eee'}}>
+                  <img src={logoUrl} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 4}}/>
+                </div>
+                <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>Current logo - upload below to replace</span>
+              </div>
+            )}
             <ImageUpload bucket="branding" currentUrl={logoUrl}
               stableKey={`kitchen_${profile?.kitchen_id}_logo`}
               onUpload={async (url) => { setLogoUrl(url); await getSupabase().from('kitchens').update({ logo_url: url }).eq('id', profile.kitchen_id); }}
               label="Upload Logo" />
             <div className="divider" />
-            <div style={{ fontWeight: 700, marginBottom: 16 }}>Banner Image</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12}}>
+              <div style={{ fontWeight: 700 }}>Banner Image</div>
+              {bannerUrl && (
+                <button onClick={async () => {
+                  setBannerUrl('');
+                  await getSupabase().from('kitchens').update({ banner_url: null}).eq('id', profile.kitchen_id);
+                }} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: 8, padding: '5px 12px', fontSize: '0.78rem', fontWeight: 700,cursor: 'pointer'}}>
+                  🗑️ Remove Banner
+                </button>
+              )}
+            </div>
+            {bannerUrl && (
+              <div style={{ marginBottom: 12, borderRadius: 10, overflow: 'hidden', height: 80, position: 'relative'}}>
+                <img src={bannerUrl} alt="banner" style={{ width: '100%', height: '100%', objectFit: 'cover'}} />
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.15)',display: 'flex', alignItems: 'flex-end', padding: '6px 10px'}}>
+                  <span style={{ fontSize: '0.72rem', color: '#fff', fontWeight: 600}}>Current banner - upload below to replace</span>
+                </div>
+              </div>
+            )}
             <ImageUpload bucket="branding" currentUrl={bannerUrl}
               stableKey={`kitchen_${profile?.kitchen_id}_banner`}
               onUpload={async (url) => { setBannerUrl(url); await getSupabase().from('kitchens').update({ banner_url: url }).eq('id', profile.kitchen_id); }}

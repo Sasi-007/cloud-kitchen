@@ -105,9 +105,13 @@ export default function KitchenMenuPage({ params }) {
         {kitchen?.banner_url && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', borderRadius: 'inherit' }} />}
         <div style={{ position: 'relative', zIndex: 1, width: '100%' }}>
           {kitchen?.logo_url && (
-            <img src={kitchen.logo_url} alt={kitchen.name}
-              style={{ width: 72, height: 72, objectFit: 'contain', borderRadius: 16, marginBottom: 12, background: '#fff', padding: 6, boxShadow: '0 2px 12px rgba(0,0,0,0.15)' }}
-            />
+            <div style={{
+              width: 80, height: 80, borderRadius: 16, marginBottom: 14, background: '#fff', padding: 6, boxShadow: '0 2px 12px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+            }}>
+              <img src={kitchen.logo_url} alt={kitchen.name}
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            </div>
           )}
           <h1>{kitchen?.name || 'Order for Your Party 🎉'}</h1>
           <p>{kitchen?.tagline || 'Bulk catering for gatherings & events'}</p>
@@ -263,30 +267,30 @@ export default function KitchenMenuPage({ params }) {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 14 }}>
                 {reviews.map((r, i) => (
                   <div key={i} style={{
-                    background: '#fff', borderRadius: 16, padding: '18px 20px',
+                    background: '#fff', borderRadius: 16, padding: '20px 22px',
                     boxShadow: '0 2px 16px rgba(0,0,0,0.07)', border: '1px solid #f5f5f5',
-                    position: 'relative', overflow: 'hidden',
+                    position: 'relative', overflow: 'hidden', textAlign: 'center',
                   }}>
                     {/* Decorative quote */}
-                    <div style={{ position: 'absolute', top: 10, right: 14, fontSize: '3rem', color: '#f0f0f0', fontFamily: 'Georgia, serif', lineHeight: 1, userSelect: 'none' }}>"</div>
+                    <div style={{ position: 'absolute', top: 8, right: 12, fontSize: '3rem', color: '#f0f0f0', fontFamily: 'Georgia, serif', lineHeight: 1, userSelect: 'none' }}>"</div>
 
                     {/* Stars */}
-                    <div style={{ marginBottom: 8 }}>
+                    <div style={{ marginBottom: 10 }}>
                       {[1,2,3,4,5].map(n => (
-                        <span key={n} style={{ color: n <= r.rating ? '#f59e0b' : '#e5e7eb', fontSize: '0.95rem' }}>★</span>
+                        <span key={n} style={{ color: n <= r.rating ? '#f59e0b' : '#e5e7eb', fontSize: '1.1rem' }}>★</span>
                       ))}
                     </div>
 
                     {/* Comment */}
                     {r.comment && (
-                      <p style={{ fontSize: '0.88rem', color: '#374151', lineHeight: 1.65, marginBottom: 10, fontStyle: 'italic', position: 'relative', zIndex: 1 }}>
+                      <p style={{ fontSize: '0.88rem', color: '#374151', lineHeight: 1.7, marginBottom: 12, fontStyle: 'italic', position: 'relative', zIndex: 1 }}>
                         "{r.comment}"
                       </p>
                     )}
 
                     {/* Tags */}
                     {r.tags?.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10, justifyContent: 'center' }}>
                         {r.tags.map((t, ti) => (
                           <span key={ti} style={{ fontSize: '0.7rem', fontWeight: 600, background: '#fff8f5', color: 'var(--primary)', borderRadius: 20, padding: '2px 10px', border: '1px solid #ffcbb0' }}>
                             {t}

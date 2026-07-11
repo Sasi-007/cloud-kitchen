@@ -28,8 +28,9 @@ a { text-decoration: none; color: inherit; }
 }
 .nav-logo {
   font-size: 1.4rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px;
+  display: flex; align-items: center; gap: 0; white-space: nowrap; overflow: hidden; text-decoration: none; flex-shrink: 1; min-width: 0;
 }
-.nav-logo span { color: var(--text); }
+.nav-logo span { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-cart-btn {
   background: var(--primary); color: #fff; padding: 10px 20px;
   border-radius: 50px; font-size: 0.95rem; font-weight: 600;
@@ -435,7 +436,7 @@ a { text-decoration: none; color: inherit; }
 @media (max-width: 640px) {
   /* Nav */
   .nav                { padding: 10px 14px; }
-  .nav-logo           { font-size: 1.1rem; }
+  .nav-logo           { font-size: 0.95rem; max-width: 55vw; }
   .nav-cart-btn       { padding: 8px 12px; font-size: 0.82rem; gap: 6px; }
   .nav-cart-label     { display: none; }        /* hide "Cart" text, keep icon + count */
 

@@ -1,8 +1,10 @@
 // SERVER COMPONENT — enables generateMetadata + JSON-LD for SEO
 import { createClient } from '@supabase/supabase-js';
+import { unstable_noStore as noStore } from 'next/cache';
 import SlugNav from './SlugNav';
 
 async function getKitchen(slug) {
+  noStore();
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
