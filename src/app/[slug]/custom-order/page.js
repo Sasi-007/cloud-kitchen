@@ -161,16 +161,14 @@ export default function CustomOrderPage({ params }) {
         {customItems.map((item, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
             <div style={{ flex: 2, minWidth: 120, fontWeight: 600, fontSize: '0.88rem' }}>✏️ {item.name}</div>
-            {item.price > 0 && <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>₹{item.price}</div>}
             {item.note && <div style={{ fontSize: '0.78rem', color: 'var(--primary)', fontStyle: 'italic' }}>"{item.note}"</div>}
             <button onClick={() => setCustomItems(p => p.filter((_, j) => j !== i))} style={{ background: '#fee2e2', border: 'none', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: '0.75rem', color: '#991b1b' }}>Remove</button>
           </div>
         ))}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginTop: 8 }}>
           <input value={customDraft.name} onChange={(e) => setCustomDraft(p => ({...p, name: e.target.value}))} placeholder="Item name" style={{ padding: '9px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.9rem' }} />
-          <input value={customDraft.price} onChange={(e) => setCustomDraft(p => ({...p, price: e.target.value}))} placeholder="Price ₹ (optional)" type="number" style={{ padding: '9px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.9rem' }} />
-          <input value={customDraft.note} onChange={(e) => setCustomDraft(p => ({...p, note: e.target.value}))} placeholder="Special note (optional)" style={{ padding: '9px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.9rem' }} />
-          <button onClick={() => { if (!customDraft.name) return; setCustomItems(p => [...p, customDraft]); setCustomDraft({ name: '', price: '', note: '' }); }}
+          <input value={customDraft.note} onChange={(e) => setCustomDraft(p => ({...p, note: e.target.vallue}))} placeholder="Special requirement(optional)" style={{ padding: '9px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.9rem' }} />
+          <button onClick={() => { if (!customDraft.name) return; setCustomItems(p=> [...p, {...customDraft, price: 0}]); setCustomDraft({ name: '', price: '', note: ''}); }}
             style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px', fontWeight: 700, cursor: 'pointer' }}>
             Add
           </button>
@@ -182,17 +180,14 @@ export default function CustomOrderPage({ params }) {
         <div style={{ background: '#fff8f5', border: '1.5px solid #ffcbb0', borderRadius: 14, padding: '16px 18px', marginBottom: 20 }}>
           <div style={{ fontWeight: 700, marginBottom: 10 }}>🛒 Your Custom Order</div>
           {cartList.map((i) => (
-            <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', marginBottom: 6, flexWrap: 'wrap', gap: 4 }}>
-              <span>{i.emoji} <b>{i.name}</b> ×{i.qty}</span>
-              <span style={{ color: 'var(--muted)' }}>
-                {i.itemNote && <span style={{ color: 'var(--primary)', marginRight: 8, fontStyle: 'italic' }}>"{i.itemNote}"</span>}
-                ₹{i.price * i.qty}
-              </span>
+            <div key={i.id} style={{ fontSize: '0.88rem', marginBottom: 6}}>
+              {i.emoji} <b>{i.name}</b> x{i.qty}
+              {i.itemNote && <span style={{ color: 'var(--primary)', marginLeft: 8, fontStyle: 'italic' }}>"{i.itemNote}"</span>}
             </div>
           ))}
           {customItems.filter(i => i.name).map((i, idx) => (
-            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', marginBottom: 6 }}>
-              <span>✏️ <b>{i.name}</b> {i.note && <span style={{ color: 'var(--primary)', fontStyle: 'italic' }}>"{i.note}"</span>}</span>
+            <div key={idx} style={{ fontSize: '0.88rem', marginBottom: 6 }}>
+              ✏️ <b>{i.name}</b> {i.note && <span style={{ color: 'var(--primary)', fontStyle: 'italic' }}>"{i.note}"</span>}
               {i.price > 0 && <span>₹{i.price}</span>}
             </div>
           ))}

@@ -118,7 +118,28 @@ export default function OrderTrackingPage({ params }) {
     return () => supabase.removeChannel(channel);
   }, [id]);
 
-  if (loading) return <div className="page" style={{ textAlign: 'center', paddingTop: 80, color: 'var(--muted)' }}>Loading order…</div>;
+  if (loading) return (
+    <div className="page">
+      <div className="success-wrap">
+        <div className="success-card" style={{ padding: '28px 24px'}}>
+          <div style={{ width: 60,height: 60, borderRadius: '50%', background: 'linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%, #f0f0f0 75%)', backgroundSize: '200%', animation: 'shimmer 1.4s infinite', margin: '0 auto 16px'}}/>
+          <div style={{ height: 22,width: '60%', borderRadius: 8, background: '#e5e7eb', margin: '0 auto 12px', backgroundSize: '200%', animation: 'shimmer 1.4s infinite'}}/>
+          <div style={{ height: 40, borderRadius: 10, background: '#f0f0f0', backgroundSize: '200%', animation: 'shimmer 1.4s infinite', marginBottom: 16}}/>
+          <div style={{ width: '80%',height: 14, borderRadius: 6, background: '#f0f0f0', backgroundSize: '200%', animation: 'shimmer 1.4s infinite', margin: '0 auto 8px'}}/>
+          <div style={{ width: '60%',height: 14, borderRadius: 6, background: '#f0f0f0', backgroundSize: '200%', animation: 'shimmer 1.4s infinite', margin: '0 auto 24px'}}/>
+          {[1,2,3,4].map(i=> (
+          <div key={i} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: '1px solid #f5f5f5'}}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e5e7eb',flexShrink: 0, backgroundSize: '200%', animation: 'shimmer 1.4s infinite'}} />
+            <div style={{ flex: 1 }}>
+              <div style={{ height: 14, width: '50%', borderRadius: 6, background: '#e5e7eb', marginBottom: 6, animation: 'shimmer 1.4s infinite', backgroundSize: '200%'}} />
+              <div style={{ height: 11, width: '70%', borderRadius: 6, background: '#f0f0f0', animation: 'shimmer 1.4s infinite', backgroundSize: '200%'}} />
+            </div>
+          </div>
+        ))}
+        </div>
+      </div>
+    </div>
+  );
   if (!order)  return <div className="page empty-state"><div className="ico">🔍</div><p>Order not found</p></div>;
 
   // ── CANCELLED VIEW ───────────────────────────────────────────

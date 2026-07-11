@@ -95,6 +95,10 @@ a { text-decoration: none; color: inherit; }
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100%   { background-position: 200% 0; }
+}
 
 /* ── LAYOUT ───────────────────────────────────────── */
 .page { max-width: 900px; margin: 0 auto; padding: 24px 16px; min-height: 80vh; }
@@ -345,7 +349,7 @@ a { text-decoration: none; color: inherit; }
   padding: 20px 16px; border-bottom: 1px solid rgba(255,255,255,0.08);
   font-size: 1.6rem;
 }
-.admin-sidebar-nav { flex: 1; padding: 12px 8px; }
+.admin-sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; }
 .admin-sidebar-link {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 12px; border-radius: 10px; color: rgba(255,255,255,0.65);
@@ -362,8 +366,9 @@ a { text-decoration: none; color: inherit; }
 .sidebar-locked-wrap {
   position: relative;
   /* No display:contents — keep as block so flex children work correctly */
+  display: flex;
 }
-.sidebar-locked { opacity: 0.45; cursor: not-allowed; user-select: none; width: 100%; }
+.sidebar-locked { opacity: 0.45; cursor: not-allowed; user-select: none; width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; color: rgba(255, 255,255,0.65); font-size: 0.88rem; font-weight: 600; }
 .sidebar-tooltip {
   display: none;
   position: fixed;
@@ -394,7 +399,7 @@ a { text-decoration: none; color: inherit; }
 @media (max-width: 900px) {
   .admin-shell        { flex-direction: column; }
   .admin-sidebar      {
-    width: 100%; height: auto; flex-direction: row;
+    width: 100% !important; height: auto !important; flex-direction: row !important;
     position: sticky; top: 0; z-index: 100;
     overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
   }
@@ -406,17 +411,20 @@ a { text-decoration: none; color: inherit; }
   .admin-sidebar-logo > span { font-size: 1.2rem; }
   .admin-sidebar-logo div    { display: none; }
   .admin-sidebar-nav  {
-    flex-direction: row; padding: 4px 6px; gap: 2px;
+    flex-direction: row !important; padding: 4px 6px; gap: 2px;
     flex: 1; overflow-x: auto; scrollbar-width: none; align-items: center;
   }
   .admin-sidebar-nav::-webkit-scrollbar { display: none; }
   .admin-sidebar-link {
-    flex-direction: column; gap: 1px; padding: 6px 10px;
+    flex-direction: column !important; gap: 1px; padding: 6px 10px;
     font-size: 0.63rem; white-space: nowrap; margin-bottom: 0;
+  }
+  .sidebar-locked-wrap {
+    flex-direction: column !important; flex-shrink: 0;
   }
   .admin-sidebar-footer {
     border-top: none; border-left: 1px solid rgba(255,255,255,0.1);
-    padding: 4px 8px; flex-shrink: 0; display: flex; align-items: center; gap: 2px;
+    padding: 4px 8px; flex-shrink: 0; display: flex; flex-direction: row !important; align-items: center; gap: 2px;
   }
   .admin-sidebar-footer .admin-sidebar-link { font-size: 0.6rem; padding: 5px 7px; }
   .sidebar-tooltip    { display: none !important; }

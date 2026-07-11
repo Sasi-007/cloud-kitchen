@@ -71,7 +71,30 @@ export default function KitchenMenuPage({ params }) {
   const categories = [CATEGORIES_ALL, ...new Set(menuItems.map((i) => i.cat || i.category))];
   const filtered   = activeCat === CATEGORIES_ALL ? menuItems : menuItems.filter((i) => (i.cat || i.category) === activeCat);
 
-  if (loading) return <div className="page" style={{ textAlign: 'center', paddingTop: 80, color: 'var(--muted)' }}>Loading menu…</div>;
+  if (loading) return (
+    <div className="page">
+      <div style={{ background: 'linear-gradient(135deg, #ff6b35, #ff8c5a)', borderRadius: 14, padding: '36px 28px', marginBottom: 28 }}>
+        <div style={{ width: 72, height: 72, borderRadius: 16, background: 'rgba(255,255,255,0.2)', marginBottom: 12}} />
+        <div style={{ height: 28, width: '55%', borderRadius: 8, background: 'rgba(255,255,255,0.25)', marginBottom: 10}} />
+        <div style={{ height: 16, width: '70%', borderRadius: 8, background: 'rgba(255,255,255,0.18)'}} />
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {[80,60,90,70].map((w,i) => <div key={i} style={{ height: 34, width: w, borderRadius: 20, background: '#e5e7eb', animation: 'shimmer 1.4s infinite', backgroundSize: '200%'}}/>)}
+      </div>
+      <div className="menu-grid">
+        {[1,2,3,4,5,6].map(i=> (
+          <div key={i} style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)'}}>
+            <div style={{ height: 140, background: 'linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%)', backgroundSize: '200%', animation: 'shimmer 1.4s infinite'}} />
+            <div style={{ padding: 14 }}>
+              <div style={{ height: 16, width: '70%', borderRadius: 6, background: '#e5e7eb', marginBottom: 8}} />
+              <div style={{ height: 12, width: '90%', borderRadius: 6, background: '#f0f0f0', marginBottom: 12}} />
+              <div style={{ height: 20, width: '40%', borderRadius: 6, background: '#e5e7eb'}} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
   if (notFound) return <div className="page empty-state"><div className="ico">🔍</div><p>Kitchen not found</p></div>;
 
   return (

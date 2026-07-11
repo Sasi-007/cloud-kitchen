@@ -18,8 +18,8 @@ export default function FeedbackPage({ params }) {
 
   // Check if feedback already exists for this order
   useEffect(() => {
-    getSupabase().from('feedback').select('*').eq('order_id', id).maybeSingle()
-      .then(({ data }) => { setExisting(data); setChecking(false); });
+    getSupabase().from('feedback').select('*').eq('order_id', id).limit(1)
+      .then(({ data }) => { setExisting(data?.[0] || null); setChecking(false); });
   }, [id]);
 
   function toggleTag(tag) {

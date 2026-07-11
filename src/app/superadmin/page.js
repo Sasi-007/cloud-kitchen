@@ -285,6 +285,20 @@ export default function SuperAdminPage() {
                   {k.active ? '⏸️ Deactivate' : '▶ Activate'}
                 </button>
                 <button className="action-btn" style={{ background: '#fef9c3', color: '#854d0e' }} onClick={() => startEdit(k)}>✏️ Edit</button>
+                <button className="action-btn" style={{ background: '#eff6ff', color: '#1e40af'}} onclick={async ()=> {
+                  const newPwd = window.prompt(`Reset password for ${k.name} admin.\nEnter new password (min 8 chars):`);
+                  if(!newPwd || newPwd.length < 8 ){
+                    newPwd && alert('Password must be at least 8 characters'); return; }
+                    const { data: profile } = await getSupabase().from('profiles').select('id').eq('kitchen_id', k.id).eq('role','admin').single();
+                    if(!profile) { alert('No admin found for this kitchen'); return;}
+                    const res= await fetch('/api/admin/reset-password', {
+                      method: 'POST', headers: {
+                        'Content-Type': 'application/json' }, body: JSON.stringify({ userId: profile.id, newPassword: newPwd }),
+                    });
+                    const result =  await res.json();
+                    if (res.ok) alert(`✅ Password reset for ${k.name} admin successfully!`);
+                    else alert('❌ '+result.error);
+                }}>🔑 Reset Password</button>
                 <button className="action-btn" style={{ background: '#fee2e2', color: '#991b1b', marginLeft: 'auto' }} onClick={() => deleteKitchen(k.id, k.name)}>🗑️ Delete</button>
               </div>
             </>

@@ -5,6 +5,7 @@ import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import CountdownTimer from '@/components/CountdownTimer';
 import { useModal } from '@/components/useModal';
+import { SkeletonCard, SkeletonStats } from '@/components/Skeleton';
 
 const STATUS_LABELS = { new: '🟡 New', progress: '🔵 In Progress', out: '🚚 Out for Delivery', delivered: '✅ Delivered', cancelled: '❌ Cancelled' };
 const STATUS_BADGE  = { new: 'badge-new', progress: 'badge-progress', out: 'badge-progress', delivered: 'badge-delivered', cancelled: 'badge-new' };
@@ -60,7 +61,7 @@ export default function AdminOrdersPage() {
 
     // Load open disputes
     supabase.from('disputes').select('*').eq('kitchen_id', profile.kitchen_id)
-      .eq('status', 'open').order('created_at', { ascending: false })
+      .in('status', ['open','reviewing']).order('created_at', { ascending: false })
       .then(({ data }) => setDisputes(data || []));
 
     // Real-time: new orders, status changes, cancellations
@@ -301,9 +302,11 @@ export default function AdminOrdersPage() {
       </div>
 
       {loading && (
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
-          <div style={{ fontSize: '2rem', marginBottom: 8, animation: 'spin 1s linear infinite', display: 'inline-block' }}>⏳</div>
-          <div style={{ fontWeight: 600 }}>Fetching orders…</div>
+        <div>
+          <SkeletonStats count={4} />
+          <SkeletonCard lines={4} />
+          <SkeletonCard lines={3} />
+          <SkeletonCard lines={4} />
         </div>
       )}
 
@@ -589,7 +592,7 @@ export default function AdminOrdersPage() {
                   <div>
                     <div style={{ fontWeight: 700 }}>{r.name} — {r.event_type || 'Custom Request'}</div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-                      📞 {r.phone} {r.event_date && `· 📅 ${new Date(r.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`} {r.people && `· 👥 ${r.people} people`}
+                      📞 {r.phone} {r.event_date && `· 📅 ${new Date(r.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`} {r.people && <span> · 👥 <b>${r.people} people</b></span>}
                     </div>
                     {r.address && <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>📍 {r.address}</div>}
                   </div>

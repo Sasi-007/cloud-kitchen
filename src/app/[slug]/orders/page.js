@@ -95,8 +95,23 @@ export default function MyOrdersPage({ params }) {
           </div>
         </form>
 
+        {loading && (
+          <div>
+            {[1,2,3].map(i => (
+              <div key={i} style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', marginBottom: 12, boxShadow: '0 1px 8px rgba(0,0,0,0.06'}}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <div style={{ height: 16,width: '45%', borderRadius: 6, background: 'linear-gradient(90deg, #f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%)', backgroundSize: '200%', animation: 'shimmer 1.4s infinite'}}/>
+                  <div style={{ height: 16,width: '20%', borderRadius: 6, background: 'linear-gradient(90deg, #f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%)', backgroundSize: '200%', animation: 'shimmer 1.4s infinite'}}/>
+                </div>
+                  <div style={{ height: 12,width: '80%', borderRadius: 6, background: '#f0f0f0', marginBottom: 8, backgroundSize: '200%', animation: 'shimmer 1.4s infinite'}}/>
+                  <div style={{ height: 12,width: '60%', borderRadius: 6, background: '#f0f0f0', backgroundSize: '200%', animation: 'shimmer 1.4s infinite'}}/>
+                </div>
+            ))}
+          </div>
+        )}
+
         {/* NO RESULTS */}
-        {searched && !orders.length && !customs.length && (
+        {!loading && searched && !orders.length && !customs.length && (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔍</div>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>No orders found</div>
