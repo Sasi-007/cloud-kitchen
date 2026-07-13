@@ -43,7 +43,11 @@ export default function AdminSubscriptionPage() {
     const msg = encodeURIComponent(
       `Hi! I'm the admin of ${profile?.kitchens?.name}. I'd like to upgrade to the ${planName} plan. Please help me with the process.`
     );
-    window.open(`https://wa.me/${ownerPhone}?text=${msg}`, '_blank');
+    if (!ownerPhone) {
+      alert('Platform contact number not configured. Please contact your platform administrator directly.');
+      return;
+    }
+    window.open(`https://wa.me/${ownerPhone.replace(/\D/g,'')}?text=${msg}`, '_blank');
   }
 
   return (

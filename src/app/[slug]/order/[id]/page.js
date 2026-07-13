@@ -213,9 +213,35 @@ export default function OrderTrackingPage({ params }) {
                   <span style={{ color: 'var(--muted)' }}>₹{item.price * item.qty}</span>
                 </div>
               ))}
-              <div style={{ borderTop: '1px solid #eee', marginTop: 8, paddingTop: 6, fontWeight: 700, fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Total</span><span style={{ color: 'var(--primary)' }}>₹{order.total}</span>
-              </div>
+            {(() => {
+              const itemsTotal = items.reduce((s,i) => s + i.price * i.qty, 0);
+              const discount = order.discount_amount > 0 ? order.discount_amount : 0;
+              const delivery = order.total + discount - itemsTotal;
+              const showBreakdown = delivery > 0 || discount > 0;
+              return (
+                <div style={{ borderTop: '1px solid #eee', marginTop: 8, paddingTop: 6}}>
+                  {showBreakdown && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 4}}>
+                      <span>Subtotal</span><span>₹{itemsTotal}</span>
+                    </div>
+                  )}
+                  {delivery > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 4}}>
+                      <span>🚚 Delivery</span><span>+₹{delivery}</span>
+                    </div>
+                  )}
+                  {discount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--green)', fontWeight: 700, marginBottom: 4}}>
+                      <span>🎟️ {order.coupon_code ? `Coupon (${order.coupon_code})` : 'Discount'}</span><span>-₹{discount}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '0.95rem', paddingTop: showBreakdown ? 6 : 0, borderTop: showBreakdown ? '1px solid #eee' : 'none'}}>
+                    <span>Total</span>
+                    <span style={{ color: 'var(--primary)'}}>₹{order.total}</span>
+                  </div>
+                </div>
+              );
+            })()}
             </div>
           )}
 

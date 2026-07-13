@@ -6,18 +6,27 @@ import { useAuth } from '@/context/AuthContext';
 import ImageUpload from '@/components/ImageUpload';
 
 const BLANK = { name: '', description: '', price: '', price_per_person: '', category: '', emoji: '🍽️', veg: true, popular: false, active: true };
-const CATS  = ['Starters', 'Main Course', 'Rice & Breads', 'Desserts', 'Drinks', 'Beverages', 'Specials'];
+const DEFAULT_CATS = ['Starters', 'Main Course', 'Rice & Breads', 'Desserts', 'Drinks', 'Beverages', 'Specials'];
 
 export default function AdminMenuPage() {
   const { profile } = useAuth();
-  const [items,    setItems]    = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [editing,  setEditing]  = useState(null);
-  const [form,     setForm]     = useState(BLANK);
-  const [saving,   setSaving]   = useState(false);
-  const [imgUrl,   setImgUrl]   = useState('');
+  const [items,       setItems]       = useState([]);
+  const [showForm,    setShowForm]    = useState(false);
+  const [editing,     setEditing]     = useState(null);
+  const [form,        setForm]        = useState(BLANK);
+  const [saving,      setSaving]      = useState(false);
+  const [imgUrl,      setImgUrl]      = useState('');
+  const [customCats,  setCustomCats]  = useState([]); // admin-created categories
+  const [newCat,      setNewCat]      = useState(''); // input for new category
+  const [showCatMgr,  setShowCatMgr]  = useState(false);
 
-  useEffect(() => { if (profile?.kitchen_id) loadItems(); }, [profile]);
+  useEffect(() => {
+    if (!profile?.kitchen_id) return;
+    loadItems();
+    // Load custom categories
+    getSupabase().from('menu_categories').select('*').eq('kitchen_id', profile.kitchen_id).order('sort_order')
+      .then(({ data }) => setCustomCats((data || []).map(c => c.name)));
+  }, [profile]);
 
   async function loadItems() {
     const { data } = await getSupabase()
@@ -75,15 +84,54 @@ export default function AdminMenuPage() {
 
   return (
     <div className="admin-page">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
         <div className="admin-hero" style={{ flex: 1, marginBottom: 0 }}>
           <h2>🍽️ Menu Management</h2>
           <p>Add, edit, reorder and manage your kitchen menu</p>
         </div>
-        <button className="btn-primary" style={{ width: 'auto', padding: '12px 20px', marginLeft: 16 }} onClick={openAdd}>
-          + Add Item
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowCatMgr(!showCatMgr)} style={{ background: '#eff6ff', color: '#1e40af', border: 'none', borderRadius: 10, padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem' }}>
+            🗂️ Categories
+          </button>
+          <button className="btn-primary" style={{ width: 'auto', padding: '10px 18px' }} onClick={openAdd}>
+            + Add Item
+          </button>
+        </div>
       </div>
+
+      {/* CATEGORY MANAGER */}
+      {showCatMgr && (
+        <div style={{ background: '#fff', borderRadius: 14, padding: '18px 20px', boxShadow: 'var(--shadow)', marginBottom: 20, border: '1.5px solid #bfdbfe' }}>
+          <div style={{ fontWeight: 700, marginBottom: 12 }}>🗂️ Custom Categories</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            {customCats.map(cat => (
+              <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: '5px 10px' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{cat}</span>
+                <button onClick={async () => {
+                  await getSupabase().from('menu_categories').delete().eq('kitchen_id', profile.kitchen_id).eq('name', cat);
+                  setCustomCats(p => p.filter(c => c !== cat));
+                }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#991b1b', fontSize: '0.75rem', padding: 0 }}>✕</button>
+              </div>
+            ))}
+            {customCats.length === 0 && <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>No custom categories yet</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input value={newCat} onChange={e => setNewCat(e.target.value)} placeholder="New category name…"
+              style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.95rem' }}
+              onKeyDown={async e => {
+                if (e.key !== 'Enter' || !newCat.trim()) return;
+                await getSupabase().from('menu_categories').insert({ kitchen_id: profile.kitchen_id, name: newCat.trim() });
+                setCustomCats(p => [...p, newCat.trim()]); setNewCat('');
+              }} />
+            <button onClick={async () => {
+              if (!newCat.trim()) return;
+              await getSupabase().from('menu_categories').insert({ kitchen_id: profile.kitchen_id, name: newCat.trim() });
+              setCustomCats(p => [...p, newCat.trim()]); setNewCat('');
+            }} style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 16px', fontWeight: 700, cursor: 'pointer' }}>Add</button>
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 8 }}>Default categories (Starters, Main Course, etc.) are always available. Add custom ones here.</div>
+        </div>
+      )}
 
       {/* ADD / EDIT FORM */}
       {showForm && (
@@ -105,7 +153,7 @@ export default function AdminMenuPage() {
             <div className="form-group"><label>CATEGORY *</label>
               <select name="category" value={form.category} onChange={field} style={{ padding: '12px 14px', border: '2px solid #eee', borderRadius: 10, fontSize: '0.95rem', width: '100%' }}>
                 <option value="">Select category</option>
-                {CATS.map((c) => <option key={c} value={c}>{c}</option>)}
+                {[...new Set([...DEFAULT_CATS, ...customCats])].map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div className="form-group"><label>EMOJI (fallback)</label>

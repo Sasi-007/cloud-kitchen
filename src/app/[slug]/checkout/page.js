@@ -14,28 +14,52 @@ export default function SlugCheckoutPage({ params }) {
   const [loading, setLoading]   = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', address: '', note: '', delivery_date: '', delivery_time: '' });
 
-  // Generate time slots: 10am–9pm in 1hr intervals
-  const TIME_SLOTS = Array.from({ length: 12 }, (_, i) => {
-    const h = i + 10;
-    const label = h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h - 12}:00 PM`;
-    return label;
-  });
+  const [couponCode,    setCouponCode]    = useState('');
+  const [couponApplied, setCouponApplied] = useState(null); // {id, code, type, value}
+  const [couponErr,     setCouponErr]     = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
 
   // Min date = today
   const today = new Date().toISOString().split('T')[0];
 
+  // Load cart from localStorage and fetch kitchen data
   useEffect(() => {
     getSupabase().from('kitchens').select('id,name,upi_id,plan,delivery_fee,free_delivery_above').eq('slug', slug).single()
       .then(({ data }) => setKitchen(data));
     try { setCart(JSON.parse(localStorage.getItem(`ck_cart_${slug}`) || '{}')); } catch {}
   }, [slug]);
 
-  const items    = Object.values(cart);
-  const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+  // Calculate subtotal, delivery, discount from cart and kitchen
+  const items     = Object.values(cart);
+  const subtotal  = items.reduce((s, i) => s + i.price * i.qty, 0);
   const freeAbove = kitchen?.free_delivery_above ?? 1000;
   const fee       = kitchen?.delivery_fee ?? 50;
-  const delivery  = freeAbove === 0 ? fee : subtotal >= freeAbove ? 0 : fee;
-  const total     = subtotal + delivery;
+  const delivery  = !kitchen ? 50 : freeAbove === 0 ? fee : subtotal >= freeAbove ? 0 : fee;
+  const discount = couponApplied
+    ? couponApplied.type === 'percent'
+      ? Math.round(subtotal * couponApplied.value / 100)
+      : Math.min(couponApplied.value, subtotal)
+    : 0;
+  const total     = subtotal + delivery - discount;
+
+  async function applyCoupon() {
+    if (!couponCode.trim()) return;
+    setCouponLoading(true); setCouponErr(''); setCouponApplied(null);
+    const code = couponCode.trim().toUpperCase();
+    const { data: c } = await getSupabase().from('coupons').select('*')
+      .eq('kitchen_id', kitchen.id).eq('code', code).eq('active', true).single();
+    if (!c) { setCouponErr('Invalid or expired coupon code'); setCouponLoading(false); return; }
+    if (c.used_count >= c.max_uses) { setCouponErr('This coupon has reached its usage limit'); setCouponLoading(false); return; }
+    if (c.min_order > 0 && subtotal < c.min_order) { setCouponErr(`Minimum order ₹${c.min_order} required for this coupon`); setCouponLoading(false); return; }
+    setCouponApplied(c);
+    setCouponLoading(false);
+  }
+
+  const TIME_SLOTS = Array.from({ length: 12 }, (_, i) => {
+    const h = i + 10;
+    const label = h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h - 12}:00 PM`;
+    return label;
+  });
 
   function field(e) { setForm((p) => ({ ...p, [e.target.name]: e.target.value })); }
 
@@ -60,10 +84,17 @@ export default function SlugCheckoutPage({ params }) {
       total,
       payment_method: payment,
       status:         'new',
+      coupon_code:    couponApplied?.code || null,
+      discount_amount: discount || 0,
     };
 
     const { error } = await getSupabase().from('orders').insert(order);
     if (error) { alert('Failed to place order. Please try again.'); setLoading(false); return; }
+
+    // Increment coupon usage count
+    if (couponApplied) {
+      await getSupabase().from('coupons').update({ used_count: couponApplied.used_count + 1 }).eq('id', couponApplied.id);
+    }
 
     localStorage.removeItem(`ck_cart_${slug}`);
     window.dispatchEvent(new Event('cart-updated'));
@@ -105,8 +136,34 @@ export default function SlugCheckoutPage({ params }) {
         </div>
       </div>
 
+      {/* COUPON CODE */}
       <div className="divider" />
-      <div style={{ fontWeight: 700, marginBottom: 12 }}>Select Payment Method</div>
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>🎟️ Have a coupon?</div>
+      {couponApplied ? (
+        <div style={{ background: '#dcfce7', border: '1.5px solid #86efac', borderRadius: 12, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <div style={{ fontWeight: 700, color: '#166534' }}>✅ {couponApplied.code} applied!</div>
+            <div style={{ fontSize: '0.82rem', color: '#166534' }}>
+              {couponApplied.type === 'percent' ? `${couponApplied.value}% off` : `₹${couponApplied.value} off`} — saving ₹{discount}
+            </div>
+          </div>
+          <button onClick={() => { setCouponApplied(null); setCouponCode(''); }} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: 8, padding: '6px 12px', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>Remove</button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input value={couponCode} onChange={e => setCouponCode(e.target.value.toUpperCase())}
+            placeholder="Enter coupon code"
+            style={{ flex: 1, minWidth: 160, padding: '11px 14px', borderRadius: 12, border: '1.5px solid var(--border)', fontSize: '1rem', textTransform: 'uppercase' }}
+            onKeyDown={e => e.key === 'Enter' && applyCoupon()} />
+          <button onClick={applyCoupon} disabled={couponLoading || !couponCode.trim()}
+            style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 12, padding: '11px 18px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', opacity: (!couponCode.trim() || couponLoading) ? 0.6 : 1 }}>
+            {couponLoading ? '…' : 'Apply'}
+          </button>
+        </div>
+      )}
+      {couponErr && <div style={{ color: 'var(--red)', fontSize: '0.82rem', marginTop: 6 }}>❌ {couponErr}</div>}
+
+      <div className="divider" />
       <div className="payment-options">
         <div className={`pay-opt ${payment === 'cod' ? 'selected' : ''}`} onClick={() => setPayment('cod')}>
           <div className="pay-icon">💵</div><h4>Cash on Delivery</h4><p>Pay when food arrives</p>
@@ -155,6 +212,11 @@ export default function SlugCheckoutPage({ params }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', marginBottom: 4 }}>
           <span>Subtotal</span><span>₹{subtotal}</span>
         </div>
+        {discount > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', marginBottom: 4, color: 'var(--green)', fontWeight: 600 }}>
+            <span>🎟️ Discount ({couponApplied?.code})</span><span>−₹{discount}</span>
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', marginBottom: 6, color: delivery === 0 ? 'var(--green)' : 'var(--muted)' }}>
           <span>Delivery</span>
           <span>{delivery === 0 ? 'FREE 🎉' : `₹${delivery}`}</span>

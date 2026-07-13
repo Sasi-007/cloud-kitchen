@@ -72,7 +72,7 @@ export default function GetStartedPage() {
           </div>
           <div className="form-group">
             <label>WHATSAPP NUMBER *</label>
-            <input name="phone" value={form.phone} onChange={field} placeholder="+91 9876543210" type="tel" required />
+            <input name="phone" value={form.phone} onChange={field} placeholder="9876543210" type="tel" required />
           </div>
           <div className="form-group">
             <label>EMAIL ADDRESS</label>

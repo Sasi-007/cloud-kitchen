@@ -15,7 +15,9 @@ export default function KitchenMenuPage({ params }) {
   const [loading,    setLoading]    = useState(true);
   const [notFound,   setNotFound]   = useState(false);
   const [reviews,    setReviews]    = useState([]);
-  const [allRatings, setAllRatings] = useState([]); // all ratings for aggregate
+  const [allRatings, setAllRatings] = useState([]);
+  const [promo,      setPromo]      = useState(null);   // today's special
+  const [bestsellerNames, setBestsellerNames] = useState(new Set()); // top items today
 
   useEffect(() => {
     async function load() {
@@ -30,15 +32,35 @@ export default function KitchenMenuPage({ params }) {
         .order('category').order('sort_order');
       setMenuItems(items || []);
 
-      // Load approved reviews 
+      // Load approved reviews + aggregate
       const limit = k.max_reviews_shown || 6;
       const { data: allVisible } = await supabase.from('feedback')
         .select('rating,comment,tags,is_manual,manual_note')
         .eq('kitchen_id', k.id).eq('visible_to_customer', true)
         .order('created_at', { ascending: false });
       const allVisibleList = allVisible || [];
-      setAllRatings(allVisibleList.map(r=>r.rating));
-      setReviews(allVisibleList.slice(0,limit));
+      setAllRatings(allVisibleList.map(r => r.rating));
+      setReviews(allVisibleList.slice(0, limit));
+
+      // Today's special promotion
+      const { data: promoData } = await supabase.from('promotions').select('*')
+        .eq('kitchen_id', k.id).gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false }).limit(1);
+      setPromo(promoData?.[0] || null);
+
+      // Bestseller: count items in today's orders
+      const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+      const { data: todayOrders } = await supabase.from('orders').select('items')
+        .eq('kitchen_id', k.id).neq('status','cancelled')
+        .gte('created_at', todayStart.toISOString());
+      const itemCount = {};
+      (todayOrders || []).forEach(o => {
+        const items = Array.isArray(o.items) ? o.items : JSON.parse(o.items || '[]');
+        items.forEach(i => { itemCount[i.name] = (itemCount[i.name] || 0) + i.qty; });
+      });
+      const topItem = Object.entries(itemCount).sort((a,b) => b[1]-a[1])[0]?.[0];
+      setBestsellerNames(topItem ? new Set([topItem]) : new Set());
+
       try {
         const saved = JSON.parse(localStorage.getItem(`ck_cart_${slug}`) || '{}');
         setCart(saved);
@@ -70,22 +92,25 @@ export default function KitchenMenuPage({ params }) {
 
   if (loading) return (
     <div className="page">
-      <div style={{ background: 'linear-gradient(135deg, #ff6b35, #ff8c5a)', borderRadius: 14, padding: '36px 28px', marginBottom: 28 }}>
-        <div style={{ width: 72, height: 72, borderRadius: 16, background: 'rgba(255,255,255,0.2)', marginBottom: 12}} />
-        <div style={{ height: 28, width: '55%', borderRadius: 8, background: 'rgba(255,255,255,0.25)', marginBottom: 10}} />
-        <div style={{ height: 16, width: '70%', borderRadius: 8, background: 'rgba(255,255,255,0.18)'}} />
+      {/* Skeleton hero */}
+      <div style={{ background: 'linear-gradient(135deg,#ff6b35,#ff8c5a)', borderRadius: 14, padding: '36px 28px', marginBottom: 28 }}>
+        <div style={{ width: 72, height: 72, borderRadius: 16, background: 'rgba(255,255,255,0.2)', marginBottom: 12 }} />
+        <div style={{ height: 28, width: '55%', borderRadius: 8, background: 'rgba(255,255,255,0.25)', marginBottom: 10 }} />
+        <div style={{ height: 16, width: '70%', borderRadius: 8, background: 'rgba(255,255,255,0.18)' }} />
       </div>
+      {/* Skeleton tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        {[80,60,90,70].map((w,i) => <div key={i} style={{ height: 34, width: w, borderRadius: 20, background: '#e5e7eb', animation: 'shimmer 1.4s infinite', backgroundSize: '200%'}}/>)}
+        {[80,60,90,70].map((w,i) => <div key={i} style={{ height: 34, width: w, borderRadius: 20, background: '#e5e7eb', animation: 'shimmer 1.4s infinite', backgroundSize: '200%' }} />)}
       </div>
+      {/* Skeleton menu grid */}
       <div className="menu-grid">
-        {[1,2,3,4,5,6].map(i=> (
-          <div key={i} style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)'}}>
-            <div style={{ height: 140, background: 'linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%)', backgroundSize: '200%', animation: 'shimmer 1.4s infinite'}} />
+        {[1,2,3,4,5,6].map(i => (
+          <div key={i} style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <div style={{ height: 140, background: 'linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%)', backgroundSize: '200%', animation: 'shimmer 1.4s infinite' }} />
             <div style={{ padding: 14 }}>
-              <div style={{ height: 16, width: '70%', borderRadius: 6, background: '#e5e7eb', marginBottom: 8}} />
-              <div style={{ height: 12, width: '90%', borderRadius: 6, background: '#f0f0f0', marginBottom: 12}} />
-              <div style={{ height: 20, width: '40%', borderRadius: 6, background: '#e5e7eb'}} />
+              <div style={{ height: 16, width: '70%', borderRadius: 6, background: '#e5e7eb', marginBottom: 8 }} />
+              <div style={{ height: 12, width: '90%', borderRadius: 6, background: '#f0f0f0', marginBottom: 12 }} />
+              <div style={{ height: 20, width: '40%', borderRadius: 6, background: '#e5e7eb' }} />
             </div>
           </div>
         ))}
@@ -106,7 +131,10 @@ export default function KitchenMenuPage({ params }) {
         <div style={{ position: 'relative', zIndex: 1, width: '100%' }}>
           {kitchen?.logo_url && (
             <div style={{
-              width: 80, height: 80, borderRadius: 16, marginBottom: 14, background: '#fff', padding: 6, boxShadow: '0 2px 12px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+              width: 80, height: 80, borderRadius: 16, marginBottom: 14,
+              background: '#fff', padding: 6, boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden',
             }}>
               <img src={kitchen.logo_url} alt={kitchen.name}
                 style={{ width: '100%', height: '100%', objectFit: 'contain' }}
@@ -156,6 +184,19 @@ export default function KitchenMenuPage({ params }) {
         </div>
       </div>
 
+      {/* TODAY'S SPECIAL BANNER */}
+      {promo && (() => {
+        const cfg = { offer: { icon: '🎉', color: '#ff6b35', bg: 'linear-gradient(135deg,#fff8f5,#ffe8db)', border: '#ffcbb0' }, menu: { icon: '🍽️', color: '#7c3aed', bg: 'linear-gradient(135deg,#f5f3ff,#ede9fe)', border: '#c4b5fd' }, notice: { icon: '📢', color: '#0284c7', bg: 'linear-gradient(135deg,#f0f9ff,#dbeafe)', border: '#93c5fd' } }[promo.type] || { icon: '🎉', color: '#ff6b35', bg: 'linear-gradient(135deg,#fff8f5,#ffe8db)', border: '#ffcbb0' };
+        return (
+          <div style={{ background: cfg.bg, border: `2px solid ${cfg.border}`, borderRadius: 16, padding: '16px 20px', marginBottom: 20, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: -10, right: -10, fontSize: '5rem', opacity: 0.07, userSelect: 'none' }}>{cfg.icon}</div>
+            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: cfg.color, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>{cfg.icon} Today&apos;s Special</div>
+            <div style={{ fontWeight: 800, fontSize: '1rem', color: '#111', marginBottom: promo.description ? 4 : 0 }}>{promo.title}</div>
+            {promo.description && <div style={{ fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.5 }}>{promo.description}</div>}
+          </div>
+        );
+      })()}
+
       {/* CATEGORIES */}
       <div className="cat-tabs">
         {categories.map((cat) => (
@@ -179,6 +220,7 @@ export default function KitchenMenuPage({ params }) {
               <div className="menu-info">
                 <div className="menu-meta">
                   <h3>{item.name}</h3>
+                  {bestsellerNames.has(item.name) && <span className="tag" style={{ background: '#fef9c3', color: '#854d0e', border: '1px solid #fde68a' }}>🏆 Bestseller</span>}
                   {item.popular && <span className="tag">🔥 Popular</span>}
                   <span className={`tag ${item.veg ? 'veg' : ''}`}>{item.veg ? '🟢 Veg' : '🔴 Non-Veg'}</span>
                 </div>
@@ -269,7 +311,8 @@ export default function KitchenMenuPage({ params }) {
                   <div key={i} style={{
                     background: '#fff', borderRadius: 16, padding: '20px 22px',
                     boxShadow: '0 2px 16px rgba(0,0,0,0.07)', border: '1px solid #f5f5f5',
-                    position: 'relative', overflow: 'hidden', textAlign: 'center',
+                    position: 'relative', overflow: 'hidden',
+                    textAlign: 'center',   /* ← centre everything inside the card */
                   }}>
                     {/* Decorative quote */}
                     <div style={{ position: 'absolute', top: 8, right: 12, fontSize: '3rem', color: '#f0f0f0', fontFamily: 'Georgia, serif', lineHeight: 1, userSelect: 'none' }}>"</div>
@@ -288,7 +331,7 @@ export default function KitchenMenuPage({ params }) {
                       </p>
                     )}
 
-                    {/* Tags */}
+                    {/* Tags — centred */}
                     {r.tags?.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10, justifyContent: 'center' }}>
                         {r.tags.map((t, ti) => (

@@ -59,7 +59,7 @@ export default function AdminOrdersPage() {
       .eq('status', 'new').order('created_at', { ascending: false })
       .then(({ data }) => setCustomReqs(data || []));
 
-    // Load open disputes
+    // Load open + reviewing disputes (issue 6)
     supabase.from('disputes').select('*').eq('kitchen_id', profile.kitchen_id)
       .in('status', ['open','reviewing']).order('created_at', { ascending: false })
       .then(({ data }) => setDisputes(data || []));
@@ -182,18 +182,30 @@ export default function AdminOrdersPage() {
   }
 
   async function confirmPayment(order) {
+    const alreadyPaid = order.amount_received || 0;
+    const remaining   = order.total - alreadyPaid;
     const received = await showPrompt({
       icon: '💳', title: 'Confirm Payment Received',
-      message: `Order #${order.id} · Total ₹${order.total}${order.amount_received > 0 ? ` · Previously received ₹${order.amount_received}` : ''}`,
-      label: 'AMOUNT RECEIVED (₹)', inputType: 'number',
-      defaultValue: String(order.total), placeholder: String(order.total),
+      message: `Order #${order.id} · Total ₹${order.total}${alreadyPaid > 0 ? ` · Already received ₹${alreadyPaid} · Remaining ₹${remaining}` : ''}`,
+      label: 'AMOUNT RECEIVED NOW (₹)', inputType: 'number',
+      defaultValue: String(remaining > 0 ? remaining : order.total),
+      placeholder: String(remaining),
       confirmLabel: '✅ Confirm',
     });
     if (received === null) return;
-    const amt    = Math.max(0, Number(received) || 0);
-    const status = amt >= order.total ? 'confirmed' : amt > 0 ? 'partial' : 'pending';
-    await getSupabase().from('orders').update({ payment_status: status, amount_received: amt }).eq('id', order.id);
-    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, payment_status: status, amount_received: amt } : o));
+    const amt = Number(received) || 0;
+    if (amt > remaining) {
+      alert(`❌ Amount exceeds pending balance!\n\nOnly ₹${remaining} remaining\nYou entered: ₹${amt}`);
+      return;
+    }
+    if (amt <= 0) {
+      alert('⚠️ Please enter a valid amount');
+      return;
+    }
+    const newAmt  = alreadyPaid + amt;  // ADD to existing
+    const status  = newAmt >= order.total ? 'confirmed' : newAmt > 0 ? 'partial' : 'pending';
+    await getSupabase().from('orders').update({ payment_status: status, amount_received: newAmt }).eq('id', order.id);
+    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, payment_status: status, amount_received: newAmt } : o));
   }
 
   async function saveManualOrder() {
@@ -592,7 +604,8 @@ export default function AdminOrdersPage() {
                   <div>
                     <div style={{ fontWeight: 700 }}>{r.name} — {r.event_type || 'Custom Request'}</div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-                      📞 {r.phone} {r.event_date && `· 📅 ${new Date(r.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`} {r.people && <span> · 👥 <b>${r.people} people</b></span>}
+                    📞 {r.phone} {r.event_date && `· 📅 ${new Date(r.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
+                    {r.people && <span> · 👥 <b>{r.people} people</b></span>}
                     </div>
                     {r.address && <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>📍 {r.address}</div>}
                   </div>
@@ -615,29 +628,59 @@ export default function AdminOrdersPage() {
                 {r.requirements && <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: 10, fontStyle: 'italic' }}>💬 "{r.requirements}"</div>}
 
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {/* Accept → converts to a real trackable order */}
+                  {/* Accept → opens price-setting modal, then creates order */}
                   <button
                     onClick={async () => {
-                      if (!r.address && !window.confirm('No address provided. Accept anyway?')) return;
+                      // Build price inputs for each item
+                      const priceMap = {};
+                      for (const item of items) {
+                        const p = await showPrompt({
+                          icon: '💰', title: `Set price for: ${item.name}`,
+                          message: item.note ? `Customer note: "${item.note}"` : `Qty: ${item.qty || 1}`,
+                          label: `PRICE PER UNIT (₹)`, inputType: 'number',
+                          defaultValue: item.price > 0 ? String(item.price) : '',
+                          placeholder: '500',
+                          confirmLabel: 'Set Price →',
+                        });
+                        if (p === null) return; // admin cancelled
+                        priceMap[item.name] = Math.max(0, Number(p) || 0);
+                      }
+                      const pricedItems = items.map(item => ({ ...item, price: priceMap[item.name] || 0 }));
+                      const total = pricedItems.reduce((s, i) => s + i.price * (i.qty || 1), 0);
+
+                      // Ask if any custom items should be added to menu
+                      const customItems = pricedItems.filter(i => !menuItems.find(m => m.name === i.name));
+                      for (const ci of customItems) {
+                        if (ci.price > 0) {
+                          const addToMenu = await showConfirm({
+                            icon: '🍽️', title: `Add to menu?`,
+                            message: `"${ci.name}" (₹${ci.price}) — add this as a menu item so you can reuse it?`,
+                            confirmLabel: 'Yes, Add to Menu', cancelLabel: 'No Thanks',
+                          });
+                          if (addToMenu) {
+                            const cat = await showPrompt({ icon: '🗂️', title: 'Category', message: `Which category for "${ci.name}"?`, label: 'CATEGORY', placeholder: 'Specials', defaultValue: 'Specials', confirmLabel: 'Save' });
+                            if (cat) {
+                              await getSupabase().from('menu_items').insert({ kitchen_id: profile.kitchen_id, name: ci.name, price: ci.price, category: cat || 'Specials', emoji: ci.emoji || '🍽️', active: true, veg: true });
+                            }
+                          }
+                        }
+                      }
+
                       const id = 'SF-' + crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase();
                       await getSupabase().from('orders').insert({
-                        id,
-                        kitchen_id:     profile.kitchen_id,
-                        customer_name:  r.name,
-                        customer_phone: r.phone,
-                        address:        r.address || 'To be confirmed',
-                        note:           r.requirements || '',
-                        items:          items.length > 0 ? items : [{ name: 'Custom Order', qty: 1, price: r.total || 0, emoji: '📝' }],
-                        total:          r.total || 0,
-                        payment_method: 'cod',
-                        status:         'new',
+                        id, kitchen_id: profile.kitchen_id,
+                        customer_name: r.name, customer_phone: r.phone,
+                        address: r.address || 'To be confirmed',
+                        note: r.requirements || '',
+                        items: pricedItems.map(i => ({ name: i.name, qty: i.qty || 1, price: i.price, emoji: i.emoji || '🍽️', note: i.note || '' })),
+                        total, payment_method: 'cod', status: 'new',
                       });
-                      await getSupabase().from('custom_requests').update({ status: 'confirmed' }).eq('id', r.id);
+                      await getSupabase().from('custom_requests').update({ status: 'confirmed', total }).eq('id', r.id);
                       setCustomReqs(p => p.filter(x => x.id !== r.id));
                     }}
                     style={{ background: '#dcfce7', color: '#166534', border: 'none', borderRadius: 8, padding: '7px 14px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}
                   >
-                    ✅ Accept & Create Order
+                    ✅ Accept & Set Prices
                   </button>
                   <a href={`https://wa.me/${r.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi ${r.name}! We received your custom order request. Let's confirm the details.`)}`}
                     target="_blank" rel="noreferrer"
