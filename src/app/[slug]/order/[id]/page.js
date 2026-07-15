@@ -103,11 +103,20 @@ export default function OrderTrackingPage({ params }) {
   const [order,   setOrder]   = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [couponDetails, setCouponDetails] = useState(null);
+
   useEffect(() => {
     const supabase = getSupabase();
     async function loadOrder() {
       const { data } = await supabase.from('orders').select('*').eq('id', id).single();
-      if (data) setOrder(data);
+      if (data) {
+        setOrder(data);
+        if (data.coupon_code) {
+          const { data: c } = await supabase.from('coupons').select('type,value,code')
+            .eq('code',data.coupon_code).single();
+          if(c) setCouponDetails(c);
+        }
+      }
       setLoading(false);
     }
     loadOrder();
@@ -230,11 +239,34 @@ export default function OrderTrackingPage({ params }) {
                       <span>🚚 Delivery</span><span>+₹{delivery}</span>
                     </div>
                   )}
-                  {discount > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--green)', fontWeight: 700, marginBottom: 4}}>
-                      <span>🎟️ {order.coupon_code ? `Coupon (${order.coupon_code})` : 'Discount'}</span><span>-₹{discount}</span>
-                    </div>
-                  )}
+                  {discount > 0 && (() => {
+                    let label = '💰 Admin Discount';
+                    let sublabel = null;
+                    if (order.coupon_code) {
+                      if (couponDetails) {
+                        const typeLabel = couponDetails.type === 'percent' ? `${couponDetails.value}% off` : `₹${couponDetails.value} off`;
+                        label = `🎟️ ${order.coupon_code}(${typeLabel})`;
+                      } else {
+                        label = `🎟️ Coupon (${order.coupon_code})`;
+                      }
+                    } else if (order.discount_note) {
+                      label = '💰 Admin Discount';
+                      sublabel = order.discount_note;
+                    }
+                    return (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--green)', fontWeight: 700, marginBottom: sublabel ? 2 : 4 }}>
+                          <span>{label}</span>
+                          <span>-₹{discount}</span>
+                        </div>
+                        {sublabel && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: 4, paddingLeft: 4 }}>
+                            {sublabel}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '0.95rem', paddingTop: showBreakdown ? 6 : 0, borderTop: showBreakdown ? '1px solid #eee' : 'none'}}>
                     <span>Total</span>
                     <span style={{ color: 'var(--primary)'}}>₹{order.total}</span>

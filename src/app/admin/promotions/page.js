@@ -13,7 +13,7 @@ const TYPE_CONFIG = {
 
 export default function AdminPromotionsPage() {
   const { profile } = useAuth();
-  const [promo,     setPromo]     = useState(null); // single active promo
+  const [promos,     setPromos]     = useState([]); // multiple active promos
   const [showForm,  setShowForm]  = useState(false);
   const [form,      setForm]      = useState({ title: '', description: '', type: 'offer' });
   const [saving,    setSaving]    = useState(false);
@@ -25,8 +25,8 @@ export default function AdminPromotionsPage() {
     const { data } = await getSupabase().from('promotions')
       .select('*').eq('kitchen_id', profile.kitchen_id)
       .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false }).limit(1);
-    setPromo(data?.[0] || null);
+      .order('created_at', { ascending: false });
+    setPromos(data || []);
   }
 
   async function save() {
@@ -42,14 +42,14 @@ export default function AdminPromotionsPage() {
       expires_at:  eod.toISOString(),
     });
     if (error) setMessage('❌ ' + error.message);
-    else { setMessage('✅ Today\'s special is live!'); setForm({ title: '', description: '', type: 'offer' }); setShowForm(false); load(); }
+    else { setMessage('✅ Promotion published!'); setForm({ title: '', description: '', type: 'offer' }); setShowForm(false); load(); }
     setSaving(false);
   }
 
   async function deletePromo(id) {
-    if (!confirm('Remove today\'s special?')) return;
+    if (!confirm('Remove this promotion?')) return;
     await getSupabase().from('promotions').delete().eq('id', id);
-    setPromo(null);
+    setPromos(p => p.filter(x => x.id !==id));
   }
 
   return (
@@ -61,45 +61,45 @@ export default function AdminPromotionsPage() {
 
       {message && <div style={{ background: message.startsWith('✅') ? '#dcfce7' : '#fef2f2', border: `1.5px solid ${message.startsWith('✅') ? '#86efac' : '#fca5a5'}`, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontWeight: 600, color: message.startsWith('✅') ? '#166534' : '#991b1b' }}>{message}</div>}
 
-      {/* Active promo display */}
-      {promo && (
-        <div style={{ background: TYPE_CONFIG[promo.type]?.bg || '#fff8f5', border: `2px solid ${TYPE_CONFIG[promo.type]?.color || 'var(--primary)'}`, borderRadius: 16, padding: '20px 22px', marginBottom: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
-            <div>
-              <div style={{ fontSize: '0.72rem', fontWeight: 800, color: TYPE_CONFIG[promo.type]?.color, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
-                {TYPE_CONFIG[promo.type]?.icon} {TYPE_CONFIG[promo.type]?.label} — Live now
-              </div>
-              <div style={{ fontWeight: 800, fontSize: '1.05rem', marginBottom: 4 }}>{promo.title}</div>
-              {promo.description && <div style={{ fontSize: '0.88rem', color: 'var(--muted)' }}>{promo.description}</div>}
-              <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 6 }}>
-                Auto-expires: {new Date(promo.expires_at).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
-              </div>
-            </div>
-            <button onClick={() => deletePromo(promo.id)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: 8, padding: '7px 14px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', flexShrink: 0 }}>
-              🗑️ Remove
-            </button>
+      {/* Active promotions list */}
+      {promos.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, marginBottom: 10, fontSize: '0.88rem', color: 'var(--muted)' }}>
+            {promos.length} active promotion{promos.length > 1 ? 's': ''} - all visible to customers
           </div>
+          {promos.map(p => {
+            const cfg = TYPE_CONFIG[p.type] || TYPE_CONFIG.offer;
+            return (
+              <div key={p.id} style={{ background: cfg.bg, border: `2px solid ${cfg.color}`, borderRadius: 14,padding: '16px 20px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10}}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: cfg.color, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 3}}>{cfg.icon}{cfg.label}</div>
+                  <div style={{ fontWeight: 800, fontSize: '0.95rem', marginBottom: p.description ? 3 : 0}}>{p.title}</div>
+                  {p.description && <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{p.description}</div>}
+                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4}}>Expires:{new Date(p.expires_at).toLocaleString('en-IN',{ hour: '2-digit', minute: '2-digit'})}</div>
+                </div>
+                <button onClick={() => deletePromo(p.id)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: 8, padding: '6px 12px', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', flexShrink: 0}}>🗑️ Remove</button>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {!promo && !showForm && (
+      {promos.length === 0 && !showForm && (
         <div style={{ textAlign: 'center', padding: '32px 20px', background: '#f9fafb', borderRadius: 16, marginBottom: 20, border: '2px dashed #e5e7eb' }}>
           <div style={{ fontSize: '2.5rem', marginBottom: 10 }}>📢</div>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>No active promotion</div>
-          <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 16 }}>Create a today&apos;s special to show customers on your menu page</div>
-          <button className="btn-primary" style={{ width: 'auto', padding: '10px 24px' }} onClick={() => setShowForm(true)}>+ Create Today&apos;s Special</button>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>No active promotions</div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 16 }}>Create promotions to show customers on your menu page. All expire at midnight.</div>
+          <button className="btn-primary" style={{ width: 'auto', padding: '10px 24px' }} onClick={() => setShowForm(true)}>+ Add Promotion</button>
         </div>
       )}
 
-      {promo && !showForm && (
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: 8 }}>Want to change it? Remove the current one first, then create a new one.</div>
-        </div>
+      {promos.length > 0 && !showForm && (
+        <button className="btn-primary" style={{ width: 'auto', padding: '10px 20px', marginBottom: 20 }} onClick={() => setShowForm(true)}>+ Add Another Promotion</button>
       )}
 
-      {showForm && !promo && (
+      {showForm && (
         <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)', border: '2px solid var(--primary)' }}>
-          <h3 style={{ fontWeight: 800, marginBottom: 18 }}>Create Today&apos;s Special</h3>
+          <h3 style={{ fontWeight: 800, marginBottom: 18 }}>New Promotion</h3>
           <div className="form-group">
             <label>TYPE</label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 4 }}>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import CountdownTimer from '@/components/CountdownTimer';
 import { useModal } from '@/components/useModal';
@@ -18,8 +19,12 @@ const PAY_STATUS    = {
 export default function AdminOrdersPage() {
   const { profile } = useAuth();
   const { modal, showConfirm, showPrompt } = useModal();
+  const searchParams = useSearchParams();
+
+  const phoneParam = searchParams.get('phone') || '';
+  const [search, setSearch] = useState(phoneParam);
   const [orders,    setOrders]    = useState([]);
-  const [filter,    setFilter]    = useState('all');
+  const [filter,    setFilter]    = useState(phoneParam ? 'all' : 'new');
   const [undoing,   setUndoing]   = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [showManual, setShowManual] = useState(false);
@@ -247,7 +252,6 @@ export default function AdminOrdersPage() {
     window.open(`https://wa.me/${order.customer_phone.replace(/\D/g, '')}?text=${msg}`, '_blank');
   }
 
-  const [search, setSearch]     = useState('');
   const [customReqs, setCustomReqs] = useState([]);
   const [editingOrder, setEditingOrder] = useState(null);
   const [editCart,     setEditCart]     = useState({});
@@ -867,6 +871,36 @@ export default function AdminOrdersPage() {
                     <button className="action-btn" style={{ fontSize: '0.75rem', background: '#dcfce7', color: '#166534', padding: '5px 10px', whiteSpace: 'nowrap' }}
                       onClick={() => confirmPayment(order)}>
                       ✅ Confirm Payment
+                    </button>
+                  )}
+                  {order.status !== 'delivered' && order.status !== 'cancelled' && order.payment_status !== 'confirmed' && (
+                    <button className="action-btn" style={{ fontSize: '0.75rem', background: '#fef9c3', color: '#854d0e', padding: '5px 10px', whiteSpace: 'nowrap' }}
+                      onClick={async () => {
+                        const val = await showPrompt({
+                          icon: '💰', title: 'Give Discount', message: `Order #${order.id}.Total ₹${order.total}`, label: 'DISCOUNT: enter ₹ amount(e.g. 100) OR % (e.g. 10%)',
+                          placeholder: '100 or 10%',defaultValue: '',
+                          confirmLabel: 'Apply Discount',
+                        });
+                        if (!val) return;
+                        const isPercent = String(val).includes('%');
+                        let discAmt = 0;
+                        let note = '';
+                        if (isPercent) {
+                          const pct = parseFloat(val);
+                          discAmt = Math.round(order.total * pct / 100);
+                          note = `${pct}% off = ₹${discAmt}`;
+                        } else {
+                          discAmt = Math.min(Number(val) || 0, order.total);
+                          note = `₹${discAmt} flat discount`;
+                        }
+                        if(discAmt <= 0) return;
+                        const newTotal = Math.max(0, order.total - discAmt);
+                        const newDiscount = (order.discount_amount || 0) + discAmt;
+                        const existingNote = order.discount_note ? order.discount_note + ' + ' : '';
+                        await getSupabase().from('orders').update({ total: newTotal, discount_amount: newDiscount, discount_note: existingNote + note, }).eq('id', order.id);
+                        setOrders(prev => prev.map(o => o.id === order.id ? { ...o, total: newTotal, discount_amount: newDiscount, discount_note: existingNote + note } : o));
+                      }}>
+                        💰 Give Discount
                     </button>
                   )}
                   {order.advance_paid && order.advance_amount > 0 && (

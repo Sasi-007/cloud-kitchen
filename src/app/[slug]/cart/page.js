@@ -2,15 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { getSupabase } from '@/lib/supabase';
 
 export default function SlugCartPage({ params }) {
   const { slug } = params;
   const [cart, setCart] = useState({});
+  const [kitchen, setKitchen] = useState(null);
 
   useEffect(() => {
     try {
       setCart(JSON.parse(localStorage.getItem(`ck_cart_${slug}`) || '{}'));
     } catch {}
+    getSupabase().from('kitchens').select('id,delivery_fee,free_delivery_above').eq('slug',slug).single().then(({ data }) => setKitchen(data));
   }, [slug]);
 
   function saveCart(next) {
@@ -28,8 +31,11 @@ export default function SlugCartPage({ params }) {
 
   const items    = Object.values(cart);
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
-  const delivery = subtotal > 1000 ? 0 : 50;
+  const freeAbove = kitchen?.free_delivery_above ?? 1000;
+  const fee = kitchen?.delivery_fee ?? 50;
+  const delivery = !kitchen ? (subtotal >=1000 ? 0 : 50 ) :freeAbove===0 ? fee: subtotal>=freeAbove?0:fee;
   const total    = subtotal + delivery;
+  const needForFree = freeAbove > 0 && delivery > 0 ? freeAbove - subtotal : 0;
 
   if (!items.length) {
     return (
@@ -68,8 +74,13 @@ export default function SlugCartPage({ params }) {
         <div className="summary-row"><span>Subtotal</span><span>₹{subtotal}</span></div>
         <div className="summary-row">
           <span>Delivery</span>
-          <span>{delivery === 0 ? <span className="free-delivery">FREE</span> : `₹${delivery}`}</span>
+          <span>{delivery === 0 ? <span className="free-delivery">FREE 🎉</span> : `₹${delivery}`}</span>
         </div>
+        {needForFree > 0 && (
+          <div style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600, padding: '6px 0', borderBottom: '1px solid #f0f0f0'}}>
+            🚚 Add ₹{needForFree} more to get FREE delivery!
+          </div>
+        )}
         <div className="summary-row summary-total"><span>Total</span><span>₹{total}</span></div>
         <Link href={`/${slug}/checkout`} className="btn-primary" style={{ marginTop: 16 }}>Proceed to Checkout →</Link>
       </div>

@@ -108,8 +108,12 @@ export default function AdminMenuPage() {
               <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: '5px 10px' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{cat}</span>
                 <button onClick={async () => {
-                  await getSupabase().from('menu_categories').delete().eq('kitchen_id', profile.kitchen_id).eq('name', cat);
+                  await getSupabase().from('menu_items').update({ category: 'Specials' })
+                    .eq('kitchen_id', profile.kitchen_id)
+                    .eq('category', cat);
+                  await getSupabase().from('menu_categories').delete().eq('kitchen_id',profile.kitchen_id).eq('name', cat);
                   setCustomCats(p => p.filter(c => c !== cat));
+                  loadItems();
                 }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#991b1b', fontSize: '0.75rem', padding: 0 }}>✕</button>
               </div>
             ))}
@@ -120,13 +124,24 @@ export default function AdminMenuPage() {
               style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.95rem' }}
               onKeyDown={async e => {
                 if (e.key !== 'Enter' || !newCat.trim()) return;
-                await getSupabase().from('menu_categories').insert({ kitchen_id: profile.kitchen_id, name: newCat.trim() });
-                setCustomCats(p => [...p, newCat.trim()]); setNewCat('');
+                const name = newCat.trim();
+                const allCats = [...DEFAULT_CATS, ...customCats];
+                if (allCats.map(c => c.toLowerCase()).includes(name.toLowerCase())) {
+                  alert(`Category "${name} already exists`); return;
+                }
+                await getSupabase().from('menu_categories').insert({ kitchen_id: profile.kitchen_id, name });
+                setCustomCats(p => [...p, name]); setNewCat('');
               }} />
             <button onClick={async () => {
-              if (!newCat.trim()) return;
-              await getSupabase().from('menu_categories').insert({ kitchen_id: profile.kitchen_id, name: newCat.trim() });
-              setCustomCats(p => [...p, newCat.trim()]); setNewCat('');
+              const name = newCat.trim();
+              if (!name) return;
+              const allCats = [...DEFAULT_CATS, ...customCats];
+              if(allCats.map(c => c.toLowerCase()).includes(name.toLowerCase)) {
+                alert(`Category "${name}" already exists`);
+                return;
+              }
+              await getSupabase().from('menu_categories').insert({ kitchen_id: profile.kitchen_id, name});
+              setCustomCats(p => [...p, name]); setNewCat('');
             }} style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 16px', fontWeight: 700, cursor: 'pointer' }}>Add</button>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 8 }}>Default categories (Starters, Main Course, etc.) are always available. Add custom ones here.</div>

@@ -16,7 +16,7 @@ export default function KitchenMenuPage({ params }) {
   const [notFound,   setNotFound]   = useState(false);
   const [reviews,    setReviews]    = useState([]);
   const [allRatings, setAllRatings] = useState([]);
-  const [promo,      setPromo]      = useState(null);   // today's special
+  const [promos,      setPromos]      = useState([]); 
   const [bestsellerNames, setBestsellerNames] = useState(new Set()); // top items today
 
   useEffect(() => {
@@ -42,11 +42,11 @@ export default function KitchenMenuPage({ params }) {
       setAllRatings(allVisibleList.map(r => r.rating));
       setReviews(allVisibleList.slice(0, limit));
 
-      // Today's special promotion
+      // Today's special promotions 
       const { data: promoData } = await supabase.from('promotions').select('*')
         .eq('kitchen_id', k.id).gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false }).limit(1);
-      setPromo(promoData?.[0] || null);
+        .order('created_at', { ascending: false });
+      setPromos(promoData || []);
 
       // Bestseller: count items in today's orders
       const todayStart = new Date(); todayStart.setHours(0,0,0,0);
@@ -184,18 +184,24 @@ export default function KitchenMenuPage({ params }) {
         </div>
       </div>
 
-      {/* TODAY'S SPECIAL BANNER */}
-      {promo && (() => {
-        const cfg = { offer: { icon: '🎉', color: '#ff6b35', bg: 'linear-gradient(135deg,#fff8f5,#ffe8db)', border: '#ffcbb0' }, menu: { icon: '🍽️', color: '#7c3aed', bg: 'linear-gradient(135deg,#f5f3ff,#ede9fe)', border: '#c4b5fd' }, notice: { icon: '📢', color: '#0284c7', bg: 'linear-gradient(135deg,#f0f9ff,#dbeafe)', border: '#93c5fd' } }[promo.type] || { icon: '🎉', color: '#ff6b35', bg: 'linear-gradient(135deg,#fff8f5,#ffe8db)', border: '#ffcbb0' };
-        return (
-          <div style={{ background: cfg.bg, border: `2px solid ${cfg.border}`, borderRadius: 16, padding: '16px 20px', marginBottom: 20, position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: -10, right: -10, fontSize: '5rem', opacity: 0.07, userSelect: 'none' }}>{cfg.icon}</div>
-            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: cfg.color, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>{cfg.icon} Today&apos;s Special</div>
-            <div style={{ fontWeight: 800, fontSize: '1rem', color: '#111', marginBottom: promo.description ? 4 : 0 }}>{promo.title}</div>
-            {promo.description && <div style={{ fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.5 }}>{promo.description}</div>}
+            {/* TODAY'S SPECIAL BANNERS - horizantal scroll on mobile, grid on desktop */}
+            {promos.length > 0 && (
+              <div style={{ marginBottom: 20}}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>📣 Today&apos;s Specials</div>
+                <div style={{ display: 'flex', gap: 12, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 4}}>{promos.map((p,i) => {
+                  const cfg = { offer: { icon: '🎉', color: '#ff6b35', bg: 'linear-gradient(135deg, #fff8f5,#ffe8db)', border: '#ffcbb0' }, menu: { icon: '🍽️', color: '#7c3aed', bg: 'linear-gradient(135deg,#f5f3ff,#ede9fe)', border: '#c4b5fd'}, notice: {icon: '📢', color: '#0284c7', bg: 'linear-gradient(135deg,#f0f9ff,#dbeafe)', border: '#93c5fd' } }[p.type] || { icon: '🎉', color: '#ff6b35', bg: 'linear-gradient(135deg,#fff8f5,#ffe8db)', border: '#ffcbb0'};
+                  return (
+                    <div key={p.id} style={{ background: cfg.bg, border: `2px solid ${cfg.border}`, borderRadius: 14, padding: '14px 18px', minWidth: promos.length > 1 ? 240 : '100%', flex: promos.length === 1 ? 1 : 'none', position: 'relative', overflow: 'hidden' }}>
+                      <div style={{ position: 'absolute', top: -8, right: -8, fontSize: '4rem', opacity: 0.07, userSelect: 'none'}}>{cfg.icon}</div>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 800, color: cfg.color, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 3}}>{cfg.icon}{p.type === 'offer' ? 'Offer' : p.type === 'menu' ? 'Special Menu' : 'Notice'}</div>
+                      <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#111', marginBottom: p.description ? 3 : 0}}>{p.title}</div>
+                      {p.description && <div style={{ fontSize: '0.82rem', color: 'var(--muted)', lineHeight: 1.5}}>{p.description}</div>}
+                    </div>
+                  );
+                })}
+              </div>
           </div>
-        );
-      })()}
+        )}
 
       {/* CATEGORIES */}
       <div className="cat-tabs">

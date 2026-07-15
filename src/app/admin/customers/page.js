@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import Link from 'next/link';
 
 export default function AdminCustomersPage() {
   const { profile } = useAuth();
@@ -97,6 +98,10 @@ export default function AdminCustomersPage() {
               style={{ marginTop: 6, display: 'inline-block', background: '#25d366', color: '#fff', borderRadius: 8, padding: '5px 12px', fontWeight: 700, fontSize: '0.78rem', textDecoration: 'none' }}>
               📱 WhatsApp
             </a>
+            <Link href={`/admin/orders?phone=${encodeURIComponent(c.phone)}`} 
+              style={{ marginTop: 6, marginLeft: 6, display: 'inline-block', background: '#eff6ff', color: '#1e40af', borderRadius: 8, padding: '5px 12px', fontWeight: 700, fontSize: '0.78rem', textDecoration: 'none'}}>
+                📋 View Orders
+              </Link>
           </div>
         </div>
       ))}

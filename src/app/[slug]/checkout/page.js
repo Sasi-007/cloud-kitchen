@@ -221,9 +221,9 @@ export default function SlugCheckoutPage({ params }) {
           <span>Delivery</span>
           <span>{delivery === 0 ? 'FREE 🎉' : `₹${delivery}`}</span>
         </div>
-        {delivery > 0 && freeAbove > 0 && (
-          <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: 4 }}>
-            Add ₹{freeAbove - subtotal} more for free delivery
+        {delivery > 0 && freeAbove > 0 && subtotal < freeAbove && (
+          <div style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600, marginBottom: 4 }}>
+            🚚 Add ₹{freeAbove - subtotal} more for FREE delivery
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1rem', borderTop: '1px solid #f0f0f0', paddingTop: 8 }}>
