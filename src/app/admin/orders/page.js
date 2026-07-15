@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -10,13 +10,22 @@ import { SkeletonCard, SkeletonStats } from '@/components/Skeleton';
 
 const STATUS_LABELS = { new: '🟡 New', progress: '🔵 In Progress', out: '🚚 Out for Delivery', delivered: '✅ Delivered', cancelled: '❌ Cancelled' };
 const STATUS_BADGE  = { new: 'badge-new', progress: 'badge-progress', out: 'badge-progress', delivered: 'badge-delivered', cancelled: 'badge-new' };
+
+export default function AdminOrdersPageWrapper() {
+  return (
+    <Suspense fallback={<div className="admin-page" style={{ color: 'var(--muted)', paddingTop: 60, textAlign: 'center' }}>⏳ Loading orders...</div>}>
+      <AdminOrdersPage />
+    </Suspense>
+  );
+}
+
 const PAY_STATUS    = {
   pending:   { label: '💳 Pending',    bg: '#fef9c3', color: '#854d0e' },
   partial:   { label: '💰 Partial',    bg: '#fff7ed', color: '#c2410c' },
   confirmed: { label: '✅ Paid',       bg: '#dcfce7', color: '#166534' },
 };
 
-export default function AdminOrdersPage() {
+function AdminOrdersPage() {
   const { profile } = useAuth();
   const { modal, showConfirm, showPrompt } = useModal();
   const searchParams = useSearchParams();
